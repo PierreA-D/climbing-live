@@ -11,31 +11,32 @@ type Camera = {
   url: string;
 };
 
-const cameras: Camera[] = [
-  {
-    id: 'main',
-    name: 'Vue principale',
-    url: 'http://localhost:8888/main/index.m3u8',
-  },
-  {
-    id: 'bloc1',
-    name: 'Bloc 1',
-    url: 'http://localhost:8888/bloc1/index.m3u8',
-  },
-  {
-    id: 'bloc2',
-    name: 'Bloc 2',
-    url: 'http://localhost:8888/bloc2/index.m3u8',
-  },
-];
-
 export default function MultiCamPlayer() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerRef = useRef<Player | null>(null);
-  const [currentCamera, setCurrentCamera] = useState<Camera>(cameras[0]);
+  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [currentCamera, setCurrentCamera] = useState<Camera | null>(null);
 
   useEffect(() => {
-    if (!videoRef.current) {
+    const fetchCameras = async () => {
+      try {
+        const res = await fetch('/api/cameras');
+        if (!res.ok) return;
+        const data: Camera[] = await res.json();
+        setCameras(data);
+        if (data.length > 0) setCurrentCamera(data[0]);
+      } catch {
+        // silently fail, no streams available
+      }
+    };
+
+    void fetchCameras();
+    const interval = setInterval(() => void fetchCameras(), 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!videoRef.current || !currentCamera) {
       return;
     }
 
@@ -75,37 +76,41 @@ export default function MultiCamPlayer() {
     <div className="min-h-screen bg-black p-6 text-white">
       <h1 className="mb-6 text-3xl font-bold">Live Escalade Multi-Cam</h1>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-        <div className="lg:col-span-3">
-          <div data-vjs-player>
-            <video ref={videoRef} className="video-js vjs-big-play-centered" />
+      {cameras.length === 0 ? (
+        <p className="text-zinc-400">Aucun flux actif pour le moment.</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+          <div className="lg:col-span-3">
+            <div data-vjs-player>
+              <video ref={videoRef} className="video-js vjs-big-play-centered" />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {cameras.map((camera) => (
+              <button
+                key={camera.id}
+                onClick={() => setCurrentCamera(camera)}
+                className={`
+                  w-full
+                  rounded-xl
+                  border
+                  p-4
+                  text-left
+                  transition
+                  ${
+                    currentCamera?.id === camera.id
+                      ? 'border-white bg-white text-black'
+                      : 'border-zinc-700 bg-zinc-900 hover:bg-zinc-800'
+                  }
+                `}
+              >
+                {camera.name}
+              </button>
+            ))}
           </div>
         </div>
-
-        <div className="space-y-3">
-          {cameras.map((camera) => (
-            <button
-              key={camera.id}
-              onClick={() => setCurrentCamera(camera)}
-              className={`
-                w-full
-                rounded-xl
-                border
-                p-4
-                text-left
-                transition
-                ${
-                  currentCamera.id === camera.id
-                    ? 'border-white bg-white text-black'
-                    : 'border-zinc-700 bg-zinc-900 hover:bg-zinc-800'
-                }
-              `}
-            >
-              {camera.name}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
