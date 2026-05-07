@@ -74,7 +74,12 @@ export default function MultiCamPlayer() {
 
   return (
     <div className="min-h-screen bg-black p-6 text-white">
-      <h1 className="mb-6 text-3xl font-bold">Live Escalade Multi-Cam</h1>
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold">Live Escalade Multi-Cam</h1>
+        <a href="/admin" className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black">
+          Admin
+        </a>
+      </div>
 
       {cameras.length === 0 ? (
         <p className="text-zinc-400">Aucun flux actif pour le moment.</p>

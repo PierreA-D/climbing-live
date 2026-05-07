@@ -82,6 +82,28 @@ Ouvrir ensuite **http://localhost:3000** (PC) ou **http://\<IP-LAN\>:3000** (mob
 
 Application recommandée : **Larix Broadcaster** (iOS/Android)
 
+Important: le serveur est maintenant protégé par le backend d'autorisation.
+Avant d'envoyer un flux, créez un appareil autorisé via l'API backend.
+
+Exemple de création d'un appareil :
+
+```bash
+curl -X POST http://localhost:3000/api/backend/devices \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "phone-main",
+    "name": "iPhone Regie",
+    "authorized": true,
+    "allowedPaths": ["main"]
+  }'
+```
+
+La réponse contient `token` (à conserver). Ensuite configurez l'app de streaming avec:
+
+- Username: `phone-main`
+- Password: `<token_retourne_par_l_api>`
+- URL RTMP: `rtmp://<IP-PC>:1935/main`
+
 | Protocole | URL de destination |
 |-----------|-------------------|
 | RTMP | `rtmp://<IP-PC>:1935/<nom-camera>` |
@@ -102,10 +124,14 @@ Dans **Paramètres → Flux** :
 - Type : `Streaming personnalisé`
 - Serveur : `rtmp://<IP-PC>:1935/`
 - Clé de stream : `main` (ou le nom souhaité)
+- Utilisateur : `id de l'appareil` (ex: `phone-main`)
+- Mot de passe : `token de l'appareil`
 
 ---
 
 ## API backend
+
+### Lecture frontend
 
 La route `GET /api/cameras` interroge MediaMTX et retourne les flux actifs :
 
@@ -116,7 +142,74 @@ La route `GET /api/cameras` interroge MediaMTX et retourne les flux actifs :
 ]
 ```
 
-Seuls les flux **en cours de diffusion** (`ready: true`) apparaissent. La liste se rafraîchit toutes les 10 secondes dans le player.
+Seuls les flux **en cours de diffusion** (`ready: true`) apparaissent.
+
+### Gestion des appareils
+
+Routes disponibles :
+
+- `GET /api/backend/devices` : liste des appareils
+- `POST /api/backend/devices` : créer un appareil
+- `GET /api/backend/devices/connected` : appareils considérés connectés (online)
+- `GET /api/backend/devices/:id` : détail d'un appareil
+- `PATCH /api/backend/devices/:id` : modifier un appareil
+- `DELETE /api/backend/devices/:id` : supprimer un appareil
+
+Payload de création d'appareil (exemple) :
+
+```json
+{
+  "id": "phone-main",
+  "name": "iPhone Regie",
+  "authorized": true,
+  "allowedPaths": ["main", "bloc1"],
+  "notes": "Appareil principal"
+}
+```
+
+### Gestion des streams
+
+- `GET /api/backend/streams` : liste des flux MediaMTX + statut d'autorisation
+
+### Settings backend
+
+- `GET /api/backend/settings` : récupérer les settings actifs
+- `PUT /api/backend/settings` : mettre à jour les settings
+- `GET /api/backend/settings/schema` : description de tous les settings disponibles + valeurs par défaut
+
+Exemple de mise à jour des settings :
+
+```json
+{
+  "requireDeviceAuth": true,
+  "allowUnknownDevices": false,
+  "autoRegisterUnknownDevices": false,
+  "autoAuthorizeNewDevices": false,
+  "exposeOnlyAuthorizedPaths": true,
+  "maxConnectedDevices": 8,
+  "deviceOfflineAfterMs": 60000,
+  "pollIntervalMs": 10000,
+  "enablePublish": true,
+  "enableRead": true
+}
+```
+
+### Endpoints d'intégration MediaMTX
+
+- `POST /api/internal/mediamtx/auth` : autoriser/refuser une connexion stream (publish/read)
+- `POST /api/internal/mediamtx/events` : mettre à jour l'état online/offline des appareils
+
+Ces endpoints servent de backend de contrôle pour MediaMTX (autorisation des appareils et suivi des connexions).
+
+### Activation de l'auth MediaMTX
+
+`docker-compose.yml` est configuré pour appeler `POST /api/internal/mediamtx/auth`.
+Après mise à jour, redémarrer MediaMTX:
+
+```bash
+docker compose down
+docker compose up -d
+```
 
 ### Variables d'environnement
 
@@ -146,13 +239,21 @@ HLS_BASE_URL=http://localhost:8888
 ```text
 app/
   ├── api/
+  │   ├── backend/
+  │   │   ├── devices/
+  │   │   ├── settings/
+  │   │   └── streams/
   │   └── cameras/
-  │       └── route.ts        # Route API → liste des flux actifs
+  │       └── route.ts
+  │   └── internal/
+  │       └── mediamtx/
   ├── components/
-  │   └── MultiCamPlayer.tsx  # Lecteur multi-caméras
+  │   └── MultiCamPlayer.tsx
   ├── globals.css
   ├── layout.tsx
   └── page.tsx
+lib/
+  └── backend/
 docker-compose.yml
 ```
 
@@ -164,31 +265,14 @@ docker-compose.yml
 - Interface responsive (mobile-first)
 - Message si aucun flux actif
 - Compatible TV
-
-## Evolutions recommandees
-
-- Scores live
-- Overlay grimpeur
-- Replay automatique
-- Multi-view
-- Clips automatiques
-- IA tracking
+- Backend de gestion des appareils (autoriser/bloquer)
+- Inventaire des appareils connectés
+- Settings backend pour contrôle fin des flux
 
 ## Reduction de latence (future)
 
 - Actuel: HLS (environ 3 a 10 secondes)
 - Plus tard: WebRTC ou LL-HLS
-
-## Prochaine etape backend
-
-Ajouter un backend Symfony pour:
-
-- gestion competition
-- scores live
-- grimpeurs
-- planning
-- classement temps reel
-- authentification
 
 ## Notes techniques
 
