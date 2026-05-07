@@ -100,7 +100,18 @@ export function sanitizePathName(rawPath: string | null | undefined): string | n
 
   const withoutQuery = rawPath.split('?')[0];
   const clean = withoutQuery.replace(/^\/+/, '').trim();
-  return clean.length > 0 ? clean : null;
+  if (clean.length === 0) {
+    return null;
+  }
+
+  // RTMP paths can arrive as "app/streamkey" (e.g. "cam1/cam1").
+  // When the last segment equals the first, keep only the last segment.
+  const parts = clean.split('/');
+  if (parts.length === 2 && parts[0] === parts[1]) {
+    return parts[1];
+  }
+
+  return clean;
 }
 
 export function normalizePathList(paths: unknown): string[] {

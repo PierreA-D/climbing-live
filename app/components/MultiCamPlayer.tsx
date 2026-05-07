@@ -24,7 +24,11 @@ export default function MultiCamPlayer() {
         if (!res.ok) return;
         const data: Camera[] = await res.json();
         setCameras(data);
-        if (data.length > 0) setCurrentCamera(data[0]);
+        // Ne reset la caméra courante que si elle n'existe plus dans la nouvelle liste
+        setCurrentCamera((prev) => {
+          if (prev && data.some((c) => c.id === prev.id)) return prev;
+          return data[0] ?? null;
+        });
       } catch {
         // silently fail, no streams available
       }
@@ -47,6 +51,21 @@ export default function MultiCamPlayer() {
         responsive: true,
         fluid: true,
         liveui: true,
+        liveTracker: {
+          trackingThreshold: 0,
+          liveTolerance: 15,
+        },
+        html5: {
+          vhs: {
+            overrideNative: true,
+            enableLowInitialPlaylist: true,
+            limitRenditionByPlayerDimensions: false,
+            smoothQualityChange: true,
+            llhls: false,
+          },
+          nativeAudioTracks: false,
+          nativeVideoTracks: false,
+        },
         sources: [
           {
             src: currentCamera.url,

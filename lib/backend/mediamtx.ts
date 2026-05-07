@@ -26,6 +26,32 @@ function asNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+function firstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.length > 0) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function getReadyFlag(record: UnknownRecord): boolean {
+  return asBoolean(record.ready) || asBoolean(record.sourceReady) || asBoolean(record.hasSource);
+}
+
+function getSourceValue(record: UnknownRecord): string | null {
+  return firstString(record.source, record.sourceType, record.sourceId);
+}
+
+function getReadersCount(record: UnknownRecord): number {
+  if (Array.isArray(record.readers)) {
+    return record.readers.length;
+  }
+
+  return Math.max(asNumber(record.readersCount), asNumber(record.numReaders));
+}
+
 export async function listMediaMtxPaths(apiBaseUrl: string): Promise<MediaMtxPathStatus[]> {
   const response = await fetch(`${apiBaseUrl}/v3/paths/list`, { cache: 'no-store' });
 
@@ -48,15 +74,11 @@ export async function listMediaMtxPaths(apiBaseUrl: string): Promise<MediaMtxPat
         return null;
       }
 
-      const readers = Array.isArray(record.readers)
-        ? record.readers.length
-        : asNumber(record.readersCount);
-
       return {
         name,
-        ready: asBoolean(record.ready),
-        source: asString(record.source),
-        readersCount: readers,
+        ready: getReadyFlag(record),
+        source: getSourceValue(record),
+        readersCount: getReadersCount(record),
       } satisfies MediaMtxPathStatus;
     })
     .filter((item): item is MediaMtxPathStatus => item !== null);

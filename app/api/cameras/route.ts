@@ -10,6 +10,9 @@ export async function GET() {
     const state = await readState();
     const paths = await listMediaMtxPaths(state.settings.mediamtxApiUrl);
 
+    const isPathLive = (path: { ready: boolean; source: string | null; readersCount: number }) =>
+      path.ready || path.readersCount > 0 || path.source !== null;
+
     const authorizedPaths = new Set(
       Object.values(state.devices)
         .filter((device) => device.authorized && !device.blocked)
@@ -20,7 +23,7 @@ export async function GET() {
       state.settings.exposeOnlyAuthorizedPaths && authorizedPaths.size > 0;
 
     const cameras = paths
-      .filter((p) => p.ready)
+      .filter((p) => isPathLive(p))
       .filter((p) => (shouldFilterByAuthorization ? authorizedPaths.has(p.name) : true))
       .map((p) => ({
         id: p.name,

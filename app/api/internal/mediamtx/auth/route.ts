@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       return { allowed: false, reason: 'device-not-authorized', device: toPublicDevice(device, false) };
     }
 
-    if (password !== null && password !== device.token) {
+    if (state.settings.requireDeviceAuth && password !== null && password !== device.token) {
       return { allowed: false, reason: 'invalid-token', device: toPublicDevice(device, false) };
     }
 

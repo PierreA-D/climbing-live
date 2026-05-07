@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   mediamtx:
     image: bluenviron/mediamtx
@@ -12,6 +10,10 @@ services:
       - MTX_AUTHHTTPEXCLUDE_0_ACTION=api
       - MTX_AUTHHTTPEXCLUDE_1_ACTION=metrics
       - MTX_AUTHHTTPEXCLUDE_2_ACTION=pprof
+      # HLS : segments courts pour réduire la latence, LL-HLS désactivé pour stabilité
+      - MTX_HLSSEGMENTDURATION=2s
+      - MTX_HLSVARIANT=mpegts
+      - MTX_HLSSEGMENTCOUNT=7
     ports:
       - '8554:8554'
       - '8888:8888'
