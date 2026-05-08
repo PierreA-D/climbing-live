@@ -60,7 +60,7 @@ const defaultCompetitionForm = {
   status: 'scheduled' as CompetitionStatus,
 };
 
-const API_BASE = '/api/backend-proxy';
+const API_BASE = '/api';
 
 function CopyRow({ label, value, mono = true }: CopyRowProps) {
   const [copied, setCopied] = useState(false);

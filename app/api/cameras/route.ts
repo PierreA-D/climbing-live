@@ -11,9 +11,8 @@ type ApiCamera = {
 
 export async function GET() {
   try {
-    const apiBaseUrl =
-      process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
-    const response = await fetch(`${apiBaseUrl}/api/cameras`, {
+    const apiBaseUrl = 'http://localhost:8000/api';
+    const response = await fetch(`${apiBaseUrl}/cameras`, {
       cache: 'no-store',
     });
 

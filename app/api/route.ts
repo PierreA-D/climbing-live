@@ -2,17 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-const API_BASE_URL =
-  process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const API_BASE_URL = 'http://localhost:8000';
 
 type RouteContext = {
-  params: Promise<{
-    path: string[];
-  }>;
+  params: Promise<Record<string, string | string[] | undefined>>;
 };
 
 async function forwardRequest(request: NextRequest, context: RouteContext) {
-  const { path = [] } = await context.params;
+  const params = await context.params;
+  const pathParam = params.path;
+  const path = Array.isArray(pathParam) ? pathParam : pathParam ? [pathParam] : [];
   const incomingUrl = new URL(request.url);
   const targetUrl = `${API_BASE_URL}/api/${path.join('/')}${incomingUrl.search}`;
 

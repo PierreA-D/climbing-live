@@ -11,6 +11,8 @@ type Camera = {
   url: string;
 };
 
+const API_BASE = '/api';
+
 export default function MultiCamPlayer() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerRef = useRef<Player | null>(null);
@@ -20,7 +22,7 @@ export default function MultiCamPlayer() {
   useEffect(() => {
     const fetchCameras = async () => {
       try {
-        const res = await fetch('/api/cameras');
+        const res = await fetch(`${API_BASE}/cameras`);
         if (!res.ok) return;
         const data: Camera[] = await res.json();
         setCameras(data);
