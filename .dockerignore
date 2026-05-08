@@ -1,0 +1,15 @@
+.git
+.gitignore
+.github
+.next
+.swc
+.idea
+.env.local
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+out/
+coverage/
+dist/
+build/

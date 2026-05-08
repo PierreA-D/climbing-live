@@ -5,52 +5,64 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
 
-type Device = {
+type CompetitionStatus = 'scheduled' | 'live' | 'finished';
+
+type Camera = {
   id: string;
   name: string;
-  token?: string;
+  location: string | null;
+  hlsUrl: string | null;
+  rtmpUrl: string | null;
+  status: 'online' | 'offline' | string;
   authorized: boolean;
-  blocked: boolean;
-  allowedPaths: string[];
-  status: 'online' | 'offline';
-  lastSeenAt: string | null;
-  lastIp: string | null;
-  currentPath: string | null;
 };
 
-type Settings = {
-  mediamtxApiUrl: string;
-  hlsBaseUrl: string;
-  requireDeviceAuth: boolean;
-  allowUnknownDevices: boolean;
-  autoRegisterUnknownDevices: boolean;
-  autoAuthorizeNewDevices: boolean;
-  exposeOnlyAuthorizedPaths: boolean;
-  maxDevices: number;
-  maxConnectedDevices: number;
-  deviceOfflineAfterMs: number;
-  pollIntervalMs: number;
-  enablePublish: boolean;
-  enableRead: boolean;
+type Athlete = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  bib: string | null;
+  category: string;
 };
 
-const defaultSettings: Settings = {
-  mediamtxApiUrl: 'http://localhost:9997',
-  hlsBaseUrl: 'http://localhost:8888',
-  requireDeviceAuth: true,
-  allowUnknownDevices: false,
-  autoRegisterUnknownDevices: false,
-  autoAuthorizeNewDevices: false,
-  exposeOnlyAuthorizedPaths: false,
-  maxDevices: 200,
-  maxConnectedDevices: 20,
-  deviceOfflineAfterMs: 45000,
-  pollIntervalMs: 10000,
-  enablePublish: true,
-  enableRead: true,
+type Competition = {
+  id: string;
+  name: string;
+  location: string | null;
+  status: CompetitionStatus | string;
 };
 
-function CopyRow({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) {
+type CopyRowProps = {
+  label: string;
+  value: string;
+  mono?: boolean;
+};
+
+const defaultCameraForm = {
+  id: '',
+  name: '',
+  location: '',
+  hlsUrl: '',
+  rtmpUrl: '',
+};
+
+const defaultAthleteForm = {
+  firstName: '',
+  lastName: '',
+  bib: '',
+  category: 'open',
+};
+
+const defaultCompetitionForm = {
+  name: '',
+  location: '',
+  startAt: '',
+  status: 'scheduled' as CompetitionStatus,
+};
+
+const API_BASE = '/api/backend-proxy';
+
+function CopyRow({ label, value, mono = true }: CopyRowProps) {
   const [copied, setCopied] = useState(false);
 
   const copy = () => {
@@ -77,41 +89,58 @@ function CopyRow({ label, value, mono = true }: { label: string; value: string; 
 }
 
 export default function AdminConsole() {
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [connected, setConnected] = useState<Device[]>([]);
-  const [settings, setSettings] = useState<Settings>(defaultSettings);
-  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const [newId, setNewId] = useState('');
-  const [newName, setNewName] = useState('');
-  const [newPaths, setNewPaths] = useState('main');
+  const [newCamera, setNewCamera] = useState(defaultCameraForm);
+  const [newAthlete, setNewAthlete] = useState(defaultAthleteForm);
+  const [newCompetition, setNewCompetition] = useState(defaultCompetitionForm);
 
   const refreshAll = useCallback(async () => {
-    const [devicesRes, connectedRes, settingsRes] = await Promise.all([
-      fetch('/api/backend/devices?includeSecrets=true'),
-      fetch('/api/backend/devices/connected'),
-      fetch('/api/backend/settings'),
+    setErrorMessage('');
+    const [camerasRes, athletesRes, competitionsRes] = await Promise.all([
+      fetch(`${API_BASE}/cameras`, { cache: 'no-store' }),
+      fetch(`${API_BASE}/athletes`, { cache: 'no-store' }),
+      fetch(`${API_BASE}/competitions`, { cache: 'no-store' }),
     ]);
 
-      if (devicesRes.ok) {
-        const data: Device[] = await devicesRes.json();
-        setDevices(data);
-        if (data.length > 0 && !selectedDevice) {
-          setSelectedDevice(data[0]);
-        }
-      }
-
-      if (connectedRes.ok) {
-        const data: Device[] = await connectedRes.json();
-        setConnected(data);
-      }
-
-    if (settingsRes.ok) {
-      const data: Settings = await settingsRes.json();
-      setSettings(data);
+    if (!camerasRes.ok || !athletesRes.ok || !competitionsRes.ok) {
+      setErrorMessage('Impossible de charger les donnees depuis l API Symfony.');
+      return;
     }
-  }, [selectedDevice]);
+
+    const camerasData: Camera[] = await camerasRes.json();
+    const athletesData: Athlete[] = await athletesRes.json();
+    const competitionsData: Competition[] = await competitionsRes.json();
+
+    setCameras(camerasData);
+    setAthletes(athletesData);
+    setCompetitions(competitionsData);
+
+    setSelectedCamera((prev: Camera | null) => {
+      if (!prev) return camerasData[0] ?? null;
+      return camerasData.find((camera: Camera) => camera.id === prev.id) ?? camerasData[0] ?? null;
+    });
+  }, []);
+
+  const connectedCount = useMemo(() => {
+    return cameras.filter((camera: Camera) => camera.status === 'online').length;
+  }, [cameras]);
+
+  const firstCameraPath = useMemo(() => {
+    if (!selectedCamera?.hlsUrl) return 'main';
+    try {
+      const hls = new URL(selectedCamera.hlsUrl);
+      const chunks = hls.pathname.split('/').filter(Boolean);
+      return chunks[0] ?? 'main';
+    } catch {
+      return 'main';
+    }
+  }, [selectedCamera]);
 
   useEffect(() => {
     const runRefresh = () => {
@@ -128,7 +157,7 @@ export default function AdminConsole() {
   }, [refreshAll]);
 
   const onboardingUrl = useMemo(() => {
-    if (!selectedDevice || !selectedDevice.token) {
+    if (!selectedCamera) {
       return '';
     }
 
@@ -136,21 +165,20 @@ export default function AdminConsole() {
       return '';
     }
 
-    const path = selectedDevice.allowedPaths[0] ?? 'main';
+    const path = firstCameraPath;
     const base = window.location.origin;
     const params = new URLSearchParams({
-      deviceId: selectedDevice.id,
-      token: selectedDevice.token,
+      deviceId: selectedCamera.id,
       path,
     });
 
     return `${base}/onboard?${params.toString()}`;
-  }, [selectedDevice]);
+  }, [firstCameraPath, selectedCamera]);
 
   const streamUrls = useMemo(() => {
-    if (typeof window === 'undefined' || !selectedDevice) return null;
+    if (typeof window === 'undefined' || !selectedCamera) return null;
     const host = window.location.hostname;
-    const path = selectedDevice.allowedPaths[0] ?? 'main';
+    const path = firstCameraPath;
     return {
       path,
       rtmp: `rtmp://${host}:1935/${path}`,
@@ -158,7 +186,7 @@ export default function AdminConsole() {
       rtsp: `rtsp://${host}:8554/${path}`,
       srt: `srt://${host}:8890?streamid=publish:${path}`,
     };
-  }, [selectedDevice]);
+  }, [firstCameraPath, selectedCamera]);
 
   useEffect(() => {
     const renderQr = async () => {
@@ -177,33 +205,32 @@ export default function AdminConsole() {
     void renderQr();
   }, [onboardingUrl]);
 
-  const createDevice = async () => {
-    const allowedPaths = newPaths
-      .split(',')
-      .map((p) => p.trim())
-      .filter(Boolean);
-
-    const res = await fetch('/api/backend/devices', {
+  const createCamera = async () => {
+    const res = await fetch(`${API_BASE}/cameras`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id: newId || undefined,
-        name: newName || undefined,
+        id: newCamera.id,
+        name: newCamera.name,
+        location: newCamera.location,
+        hlsUrl: newCamera.hlsUrl || null,
+        rtmpUrl: newCamera.rtmpUrl || null,
+        status: 'offline',
         authorized: true,
-        allowedPaths,
       }),
     });
 
     if (res.ok) {
-      setNewId('');
-      setNewName('');
-      setNewPaths('main');
+      setNewCamera(defaultCameraForm);
       await refreshAll();
+      return;
     }
+
+    setErrorMessage('Creation de camera impossible.');
   };
 
-  const patchDevice = async (id: string, patch: Record<string, unknown>) => {
-    const res = await fetch(`/api/backend/devices/${id}`, {
+  const patchCamera = async (id: string, patch: Partial<Pick<Camera, 'authorized' | 'status'>>) => {
+    const res = await fetch(`${API_BASE}/cameras/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
@@ -211,19 +238,108 @@ export default function AdminConsole() {
 
     if (res.ok) {
       await refreshAll();
+      return;
     }
+
+    setErrorMessage('Mise a jour camera impossible.');
   };
 
-  const saveSettings = async () => {
-    const res = await fetch('/api/backend/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings),
+  const deleteCamera = async (id: string) => {
+    const res = await fetch(`${API_BASE}/cameras/${id}`, {
+      method: 'DELETE',
     });
 
     if (res.ok) {
       await refreshAll();
+      return;
     }
+
+    setErrorMessage('Suppression camera impossible.');
+  };
+
+  const createAthlete = async () => {
+    const res = await fetch(`${API_BASE}/athletes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: newAthlete.firstName,
+        lastName: newAthlete.lastName,
+        bib: newAthlete.bib || null,
+        category: newAthlete.category,
+      }),
+    });
+
+    if (res.ok) {
+      setNewAthlete(defaultAthleteForm);
+      await refreshAll();
+      return;
+    }
+
+    setErrorMessage('Creation de grimpeur impossible.');
+  };
+
+  const deleteAthlete = async (id: string) => {
+    const res = await fetch(`${API_BASE}/athletes/${id}`, {
+      method: 'DELETE',
+    });
+
+    if (res.ok) {
+      await refreshAll();
+      return;
+    }
+
+    setErrorMessage('Suppression de grimpeur impossible.');
+  };
+
+  const createCompetition = async () => {
+    const res = await fetch(`${API_BASE}/competitions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: newCompetition.name,
+        location: newCompetition.location || null,
+        startAt: newCompetition.startAt
+          ? new Date(newCompetition.startAt).toISOString()
+          : new Date().toISOString(),
+        status: newCompetition.status,
+      }),
+    });
+
+    if (res.ok) {
+      setNewCompetition(defaultCompetitionForm);
+      await refreshAll();
+      return;
+    }
+
+    setErrorMessage('Creation de competition impossible.');
+  };
+
+  const patchCompetitionStatus = async (id: string, status: CompetitionStatus) => {
+    const res = await fetch(`${API_BASE}/competitions/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+
+    if (res.ok) {
+      await refreshAll();
+      return;
+    }
+
+    setErrorMessage('Mise a jour competition impossible.');
+  };
+
+  const deleteCompetition = async (id: string) => {
+    const res = await fetch(`${API_BASE}/competitions/${id}`, {
+      method: 'DELETE',
+    });
+
+    if (res.ok) {
+      await refreshAll();
+      return;
+    }
+
+    setErrorMessage('Suppression competition impossible.');
   };
 
   return (
@@ -231,92 +347,122 @@ export default function AdminConsole() {
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold">Admin Flux</h1>
-            <p className="text-zinc-400">Gestion des appareils, des autorisations, et des settings backend.</p>
+            <h1 className="text-3xl font-bold">Admin API Symfony</h1>
+            <p className="text-zinc-400">Gestion des cameras, grimpeurs et competitions.</p>
           </div>
           <Link href="/" className="rounded-xl bg-white px-4 py-2 font-semibold text-black">
             Retour au live
           </Link>
         </header>
 
+        {errorMessage ? (
+          <div className="rounded-xl border border-red-600/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+            {errorMessage}
+          </div>
+        ) : null}
+
         <section className="grid gap-4 lg:grid-cols-3">
           <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4">
-            <p className="text-sm text-zinc-400">Appareils enregistrés</p>
-            <p className="text-3xl font-bold">{devices.length}</p>
+            <p className="text-sm text-zinc-400">Cameras enregistrees</p>
+            <p className="text-3xl font-bold">{cameras.length}</p>
           </div>
           <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4">
-            <p className="text-sm text-zinc-400">Appareils connectés</p>
-            <p className="text-3xl font-bold">{connected.length}</p>
+            <p className="text-sm text-zinc-400">Cameras en ligne</p>
+            <p className="text-3xl font-bold">{connectedCount}</p>
           </div>
           <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4">
-            <p className="text-sm text-zinc-400">Etat</p>
-            <p className="text-xl font-semibold">Actif</p>
+            <p className="text-sm text-zinc-400">Competitions</p>
+            <p className="text-3xl font-bold">{competitions.length}</p>
           </div>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-3">
           <div className="space-y-4 xl:col-span-2">
             <div className="rounded-2xl border border-zinc-700 bg-zinc-900/30 p-4">
-              <h2 className="text-xl font-semibold">Ajouter un appareil</h2>
-              <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <h2 className="text-xl font-semibold">Ajouter une camera</h2>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <input
-                  value={newId}
-                  onChange={(e) => setNewId(e.target.value)}
-                  placeholder="id-appareil"
+                  value={newCamera.id}
+                  onChange={(e) => setNewCamera((prev) => ({ ...prev, id: e.target.value }))}
+                  placeholder="camera-main"
                   className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
                 />
                 <input
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
+                  value={newCamera.name}
+                  onChange={(e) => setNewCamera((prev) => ({ ...prev, name: e.target.value }))}
                   placeholder="Nom"
                   className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
                 />
                 <input
-                  value={newPaths}
-                  onChange={(e) => setNewPaths(e.target.value)}
-                  placeholder="main,bloc1"
+                  value={newCamera.location}
+                  onChange={(e) => setNewCamera((prev) => ({ ...prev, location: e.target.value }))}
+                  placeholder="Zone bloc"
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
+                />
+                <input
+                  value={newCamera.hlsUrl}
+                  onChange={(e) => setNewCamera((prev) => ({ ...prev, hlsUrl: e.target.value }))}
+                  placeholder="http://localhost:8888/main/index.m3u8"
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
+                />
+                <input
+                  value={newCamera.rtmpUrl}
+                  onChange={(e) => setNewCamera((prev) => ({ ...prev, rtmpUrl: e.target.value }))}
+                  placeholder="rtmp://localhost:1935/main"
                   className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
                 />
               </div>
               <button
-                onClick={() => void createDevice()}
+                onClick={() => void createCamera()}
                 className="mt-3 rounded-xl bg-white px-4 py-2 font-semibold text-black"
               >
-                Creer appareil
+                Creer camera
               </button>
             </div>
 
             <div className="rounded-2xl border border-zinc-700 bg-zinc-900/30 p-4">
-              <h2 className="text-xl font-semibold">Appareils</h2>
+              <h2 className="text-xl font-semibold">Cameras</h2>
               <div className="mt-3 space-y-3">
-                {devices.map((d) => (
-                  <div key={d.id} className="rounded-xl border border-zinc-700 bg-zinc-950/80 p-3">
+                {cameras.map((camera) => (
+                  <div key={camera.id} className="rounded-xl border border-zinc-700 bg-zinc-950/80 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <p className="font-semibold">{d.name}</p>
-                        <p className="text-xs text-zinc-400">{d.id}</p>
+                        <p className="font-semibold">{camera.name}</p>
+                        <p className="text-xs text-zinc-400">{camera.id}</p>
                         <p className="text-xs text-zinc-400">
-                          Flux: {d.allowedPaths.join(', ') || 'tous'} | Statut: {d.status}
+                          Zone: {camera.location || 'n/a'} | Statut: {camera.status}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button
-                          onClick={() => void patchDevice(d.id, { authorized: !d.authorized })}
+                          onClick={() =>
+                            void patchCamera(camera.id, { authorized: !camera.authorized })
+                          }
                           className="rounded-lg border border-zinc-600 px-3 py-1 text-sm"
                         >
-                          {d.authorized ? 'Retirer autorisation' : 'Autoriser'}
+                          {camera.authorized ? 'Retirer autorisation' : 'Autoriser'}
                         </button>
                         <button
-                          onClick={() => void patchDevice(d.id, { blocked: !d.blocked })}
+                          onClick={() =>
+                            void patchCamera(camera.id, {
+                              status: camera.status === 'online' ? 'offline' : 'online',
+                            })
+                          }
                           className="rounded-lg border border-zinc-600 px-3 py-1 text-sm"
                         >
-                          {d.blocked ? 'Debloquer' : 'Bloquer'}
+                          {camera.status === 'online' ? 'Passer offline' : 'Passer online'}
                         </button>
                         <button
-                          onClick={() => setSelectedDevice(d)}
+                          onClick={() => setSelectedCamera(camera)}
                           className="rounded-lg bg-white px-3 py-1 text-sm font-semibold text-black"
                         >
                           QR onboarding
+                        </button>
+                        <button
+                          onClick={() => void deleteCamera(camera.id)}
+                          className="rounded-lg border border-red-500/60 px-3 py-1 text-sm text-red-300"
+                        >
+                          Supprimer
                         </button>
                       </div>
                     </div>
@@ -326,128 +472,156 @@ export default function AdminConsole() {
             </div>
 
             <div className="rounded-2xl border border-zinc-700 bg-zinc-900/30 p-4">
-              <h2 className="text-xl font-semibold">Settings backend</h2>
+              <h2 className="text-xl font-semibold">Grimpeurs</h2>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={settings.requireDeviceAuth}
-                    onChange={(e) => setSettings((s) => ({ ...s, requireDeviceAuth: e.target.checked }))}
-                  />
-                  Auth appareil obligatoire
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={settings.allowUnknownDevices}
-                    onChange={(e) => setSettings((s) => ({ ...s, allowUnknownDevices: e.target.checked }))}
-                  />
-                  Autoriser appareils inconnus
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={settings.autoRegisterUnknownDevices}
-                    onChange={(e) =>
-                      setSettings((s) => ({ ...s, autoRegisterUnknownDevices: e.target.checked }))
-                    }
-                  />
-                  Auto-enregistrer inconnus
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={settings.autoAuthorizeNewDevices}
-                    onChange={(e) =>
-                      setSettings((s) => ({ ...s, autoAuthorizeNewDevices: e.target.checked }))
-                    }
-                  />
-                  Auto-autoriser nouveaux
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={settings.exposeOnlyAuthorizedPaths}
-                    onChange={(e) =>
-                      setSettings((s) => ({ ...s, exposeOnlyAuthorizedPaths: e.target.checked }))
-                    }
-                  />
-                  Exposer seulement flux autorises
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={settings.enablePublish}
-                    onChange={(e) => setSettings((s) => ({ ...s, enablePublish: e.target.checked }))}
-                  />
-                  Autoriser publication
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={settings.enableRead}
-                    onChange={(e) => setSettings((s) => ({ ...s, enableRead: e.target.checked }))}
-                  />
-                  Autoriser lecture
-                </label>
-                <label className="text-sm">
-                  Max appareils
-                  <input
-                    type="number"
-                    value={settings.maxDevices}
-                    onChange={(e) => setSettings((s) => ({ ...s, maxDevices: Number(e.target.value) || 1 }))}
-                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2"
-                  />
-                </label>
-                <label className="text-sm">
-                  Max connectes
-                  <input
-                    type="number"
-                    value={settings.maxConnectedDevices}
-                    onChange={(e) =>
-                      setSettings((s) => ({ ...s, maxConnectedDevices: Number(e.target.value) || 1 }))
-                    }
-                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2"
-                  />
-                </label>
-                <label className="text-sm">
-                  Offline timeout (ms)
-                  <input
-                    type="number"
-                    value={settings.deviceOfflineAfterMs}
-                    onChange={(e) =>
-                      setSettings((s) => ({ ...s, deviceOfflineAfterMs: Number(e.target.value) || 5000 }))
-                    }
-                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2"
-                  />
-                </label>
-                <label className="text-sm">
-                  Polling UI (ms)
-                  <input
-                    type="number"
-                    value={settings.pollIntervalMs}
-                    onChange={(e) =>
-                      setSettings((s) => ({ ...s, pollIntervalMs: Number(e.target.value) || 1000 }))
-                    }
-                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2"
-                  />
-                </label>
+                <input
+                  value={newAthlete.firstName}
+                  onChange={(e) => setNewAthlete((prev) => ({ ...prev, firstName: e.target.value }))}
+                  placeholder="Prenom"
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
+                />
+                <input
+                  value={newAthlete.lastName}
+                  onChange={(e) => setNewAthlete((prev) => ({ ...prev, lastName: e.target.value }))}
+                  placeholder="Nom"
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
+                />
+                <input
+                  value={newAthlete.bib}
+                  onChange={(e) => setNewAthlete((prev) => ({ ...prev, bib: e.target.value }))}
+                  placeholder="Dossard"
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
+                />
+                <input
+                  value={newAthlete.category}
+                  onChange={(e) => setNewAthlete((prev) => ({ ...prev, category: e.target.value }))}
+                  placeholder="Categorie"
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
+                />
               </div>
               <button
-                onClick={() => void saveSettings()}
+                onClick={() => void createAthlete()}
                 className="mt-4 rounded-xl bg-white px-4 py-2 font-semibold text-black"
               >
-                Sauvegarder settings
+                Ajouter grimpeur
               </button>
+
+              <div className="mt-4 space-y-2">
+                {athletes.map((athlete) => (
+                  <div
+                    key={athlete.id}
+                    className="flex items-center justify-between rounded-lg border border-zinc-700 bg-zinc-950/70 px-3 py-2"
+                  >
+                    <p className="text-sm">
+                      {athlete.firstName} {athlete.lastName} - {athlete.category}
+                      {athlete.bib ? ` (dossard ${athlete.bib})` : ''}
+                    </p>
+                    <button
+                      onClick={() => void deleteAthlete(athlete.id)}
+                      className="rounded-lg border border-red-500/60 px-3 py-1 text-xs text-red-300"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-700 bg-zinc-900/30 p-4">
+              <h2 className="text-xl font-semibold">Competitions</h2>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <input
+                  value={newCompetition.name}
+                  onChange={(e) => setNewCompetition((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="Nom competition"
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
+                />
+                <input
+                  value={newCompetition.location}
+                  onChange={(e) =>
+                    setNewCompetition((prev) => ({ ...prev, location: e.target.value }))
+                  }
+                  placeholder="Lieu"
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
+                />
+                <input
+                  type="datetime-local"
+                  value={newCompetition.startAt}
+                  onChange={(e) =>
+                    setNewCompetition((prev) => ({ ...prev, startAt: e.target.value }))
+                  }
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
+                />
+                <select
+                  value={newCompetition.status}
+                  onChange={(e) =>
+                    setNewCompetition((prev) => ({
+                      ...prev,
+                      status: e.target.value as CompetitionStatus,
+                    }))
+                  }
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
+                >
+                  <option value="scheduled">scheduled</option>
+                  <option value="live">live</option>
+                  <option value="finished">finished</option>
+                </select>
+              </div>
+              <button
+                onClick={() => void createCompetition()}
+                className="mt-4 rounded-xl bg-white px-4 py-2 font-semibold text-black"
+              >
+                Ajouter competition
+              </button>
+
+              <div className="mt-4 space-y-2">
+                {competitions.map((competition) => (
+                  <div
+                    key={competition.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-700 bg-zinc-950/70 px-3 py-2"
+                  >
+                    <p className="text-sm">
+                      {competition.name} - {competition.status}
+                      {competition.location ? ` (${competition.location})` : ''}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => void patchCompetitionStatus(competition.id, 'scheduled')}
+                        className="rounded-lg border border-zinc-600 px-2 py-1 text-xs"
+                      >
+                        scheduled
+                      </button>
+                      <button
+                        onClick={() => void patchCompetitionStatus(competition.id, 'live')}
+                        className="rounded-lg border border-zinc-600 px-2 py-1 text-xs"
+                      >
+                        live
+                      </button>
+                      <button
+                        onClick={() => void patchCompetitionStatus(competition.id, 'finished')}
+                        className="rounded-lg border border-zinc-600 px-2 py-1 text-xs"
+                      >
+                        finished
+                      </button>
+                      <button
+                        onClick={() => void deleteCompetition(competition.id)}
+                        className="rounded-lg border border-red-500/60 px-2 py-1 text-xs text-red-300"
+                      >
+                        supprimer
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
           <aside className="space-y-4">
             <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4">
               <h2 className="text-xl font-semibold">QR code onboarding</h2>
-              {selectedDevice ? (
+              {selectedCamera ? (
                 <>
-                  <p className="mt-2 text-sm text-zinc-400">Appareil: {selectedDevice.id}</p>
+                  <p className="mt-2 text-sm text-zinc-400">Camera: {selectedCamera.id}</p>
                   {qrDataUrl ? (
                     <Image
                       src={qrDataUrl}
@@ -463,21 +637,25 @@ export default function AdminConsole() {
                   <p className="mt-3 break-all text-xs text-zinc-400">{onboardingUrl}</p>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-zinc-400">Selectionnez un appareil pour generer le QR.</p>
+                <p className="mt-2 text-sm text-zinc-400">Selectionnez une camera pour generer le QR.</p>
               )}
             </div>
 
             <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4">
               <h2 className="text-lg font-semibold">Sans QR code</h2>
-              {!selectedDevice ? (
-                <p className="mt-2 text-sm text-zinc-400">Selectionnez un appareil pour afficher les credentials.</p>
+              {!selectedCamera ? (
+                <p className="mt-2 text-sm text-zinc-400">Selectionnez une camera pour afficher les URLs.</p>
               ) : (
                 <div className="mt-3 space-y-4">
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Identifiants</p>
-                    <CopyRow label="Utilisateur (user)" value={selectedDevice.id} />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Camera</p>
+                    <CopyRow label="ID" value={selectedCamera.id} />
                     <CopyRow label="Cle de stream (stream key)" value={streamUrls?.path ?? 'main'} />
-                    <CopyRow label="Mot de passe (token)" value={selectedDevice.token ?? '—'} />
+                    <CopyRow
+                      label="HLS"
+                      value={selectedCamera.hlsUrl ?? `http://localhost:8888/${streamUrls?.path ?? 'main'}/index.m3u8`}
+                      mono={false}
+                    />
                   </div>
 
                   {streamUrls && (
@@ -493,8 +671,6 @@ export default function AdminConsole() {
                         <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Config OBS</p>
                         <CopyRow label="Serveur" value={streamUrls.rtmpServer} />
                         <CopyRow label="Cle de stream (stream key)" value={streamUrls.path} />
-                        <CopyRow label="Utilisateur" value={selectedDevice.id} />
-                        <CopyRow label="Mot de passe" value={selectedDevice.token ?? '—'} />
                       </div>
                     </>
                   )}

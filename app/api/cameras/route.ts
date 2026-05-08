@@ -1,35 +1,42 @@
 import { NextResponse } from 'next/server';
 
-import { listMediaMtxPaths } from '@/lib/backend/mediamtx';
-import { readState } from '@/lib/backend/store';
-
 export const runtime = 'nodejs';
+
+type ApiCamera = {
+  id: string;
+  name: string;
+  status?: string;
+  hlsUrl?: string | null;
+};
 
 export async function GET() {
   try {
-    const state = await readState();
-    const paths = await listMediaMtxPaths(state.settings.mediamtxApiUrl);
+    const apiBaseUrl =
+      process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+    const response = await fetch(`${apiBaseUrl}/api/cameras`, {
+      cache: 'no-store',
+    });
 
-    const isPathLive = (path: { ready: boolean; source: string | null; readersCount: number }) =>
-      path.ready || path.readersCount > 0 || path.source !== null;
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          error: 'Failed to fetch cameras from backend API',
+          status: response.status,
+        },
+        { status: 502 }
+      );
+    }
 
-    const authorizedPaths = new Set(
-      Object.values(state.devices)
-        .filter((device) => device.authorized && !device.blocked)
-        .flatMap((device) => device.allowedPaths)
-    );
-
-    const shouldFilterByAuthorization =
-      state.settings.exposeOnlyAuthorizedPaths && authorizedPaths.size > 0;
-
-    const cameras = paths
-      .filter((p) => isPathLive(p))
-      .filter((p) => (shouldFilterByAuthorization ? authorizedPaths.has(p.name) : true))
-      .map((p) => ({
-        id: p.name,
-        name: p.name,
-        url: `${state.settings.hlsBaseUrl}/${p.name}/index.m3u8`,
-      }));
+    const data = (await response.json()) as ApiCamera[];
+    const cameras = data
+      .map((camera) => ({
+        id: camera.id,
+        name: camera.name,
+        url: camera.hlsUrl ?? '',
+        status: camera.status ?? 'offline',
+      }))
+      .filter((camera) => camera.url.length > 0)
+      .filter((camera) => camera.status === 'online');
 
     return NextResponse.json(cameras);
   } catch (error) {

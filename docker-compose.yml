@@ -1,4 +1,17 @@
 services:
+  frontend:
+    container_name: climbing-live-front
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      - NEXT_PUBLIC_API_URL=http://host.docker.internal:8000
+    depends_on:
+      - mediamtx
+
   mediamtx:
     image: bluenviron/mediamtx
     extra_hosts:
