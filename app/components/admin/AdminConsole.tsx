@@ -38,12 +38,9 @@ type CopyRowProps = {
   mono?: boolean;
 };
 
-const defaultCameraForm = {
-  id: '',
-  name: '',
-  location: '',
-  hlsUrl: '',
-  rtmpUrl: '',
+type DeviceWithSecret = {
+  id: string;
+  token?: string;
 };
 
 const defaultAthleteForm = {
@@ -60,7 +57,25 @@ const defaultCompetitionForm = {
   status: 'scheduled' as CompetitionStatus,
 };
 
-const API_BASE = '/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.trim() || 'http://localhost:8000/api';
+const PUBLIC_APP_BASE_URL = process.env.NEXT_PUBLIC_APP_BASE_URL?.trim() ?? '';
+const PUBLIC_STREAM_HOST = process.env.NEXT_PUBLIC_STREAM_HOST?.trim() ?? '';
+
+function getAppBaseUrl() {
+  if (PUBLIC_APP_BASE_URL) {
+    return PUBLIC_APP_BASE_URL.replace(/\/+$/, '');
+  }
+
+  return 'http://localhost:3000';
+}
+
+function getStreamHost() {
+  if (PUBLIC_STREAM_HOST) {
+    return PUBLIC_STREAM_HOST;
+  }
+
+  return 'localhost';
+}
 
 function CopyRow({ label, value, mono = true }: CopyRowProps) {
   const [copied, setCopied] = useState(false);
@@ -92,20 +107,29 @@ export default function AdminConsole() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [deviceTokens, setDeviceTokens] = useState<Record<string, string>>({});
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const [newCamera, setNewCamera] = useState(defaultCameraForm);
   const [newAthlete, setNewAthlete] = useState(defaultAthleteForm);
   const [newCompetition, setNewCompetition] = useState(defaultCompetitionForm);
 
+  const generateStreamKey = () => {
+    return `${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`.substring(0, 32);
+  };
+
+  const generateCameraId = () => {
+    return `cam-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  };
+
   const refreshAll = useCallback(async () => {
     setErrorMessage('');
-    const [camerasRes, athletesRes, competitionsRes] = await Promise.all([
+    const [camerasRes, athletesRes, competitionsRes, devicesRes] = await Promise.all([
       fetch(`${API_BASE}/cameras`, { cache: 'no-store' }),
       fetch(`${API_BASE}/athletes`, { cache: 'no-store' }),
       fetch(`${API_BASE}/competitions`, { cache: 'no-store' }),
+      fetch('/api/backend/devices?includeSecrets=true', { cache: 'no-store' }),
     ]);
 
     if (!camerasRes.ok || !athletesRes.ok || !competitionsRes.ok) {
@@ -116,6 +140,17 @@ export default function AdminConsole() {
     const camerasData: Camera[] = await camerasRes.json();
     const athletesData: Athlete[] = await athletesRes.json();
     const competitionsData: Competition[] = await competitionsRes.json();
+
+    if (devicesRes.ok) {
+      const devicesData: DeviceWithSecret[] = await devicesRes.json();
+      const tokens: Record<string, string> = {};
+      for (const device of devicesData) {
+        if (typeof device.id === 'string' && typeof device.token === 'string' && device.token.length > 0) {
+          tokens[device.id] = device.token;
+        }
+      }
+      setDeviceTokens(tokens);
+    }
 
     setCameras(camerasData);
     setAthletes(athletesData);
@@ -161,23 +196,27 @@ export default function AdminConsole() {
       return '';
     }
 
-    if (typeof window === 'undefined') {
+    const path = firstCameraPath;
+    const base = getAppBaseUrl();
+    if (!base) {
       return '';
     }
 
-    const path = firstCameraPath;
-    const base = window.location.origin;
+    const streamHost = getStreamHost();
+    const token = deviceTokens[selectedCamera.id] ?? '';
     const params = new URLSearchParams({
       deviceId: selectedCamera.id,
       path,
+      streamHost,
+      token,
     });
 
     return `${base}/onboard?${params.toString()}`;
-  }, [firstCameraPath, selectedCamera]);
+  }, [deviceTokens, firstCameraPath, selectedCamera]);
 
   const streamUrls = useMemo(() => {
-    if (typeof window === 'undefined' || !selectedCamera) return null;
-    const host = window.location.hostname;
+    if (!selectedCamera) return null;
+    const host = getStreamHost();
     const path = firstCameraPath;
     return {
       path,
@@ -206,22 +245,51 @@ export default function AdminConsole() {
   }, [onboardingUrl]);
 
   const createCamera = async () => {
+    const cameraId = generateCameraId();
+    const streamKey = generateStreamKey();
+
+    const host = getStreamHost();
+
+    const hlsUrl = `http://${host}:8888/${streamKey}/index.m3u8`;
+    const rtmpUrl = `rtmp://${host}:1935/${streamKey}`;
+
+    const newCameraData = {
+      id: cameraId,
+      name: cameraId,
+      location: '',
+      hlsUrl,
+      rtmpUrl,
+      status: 'offline' as const,
+      authorized: true,
+    };
+
     const res = await fetch(`${API_BASE}/cameras`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newCameraData),
+    });
+
+    const deviceRes = await fetch('/api/backend/devices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id: newCamera.id,
-        name: newCamera.name,
-        location: newCamera.location,
-        hlsUrl: newCamera.hlsUrl || null,
-        rtmpUrl: newCamera.rtmpUrl || null,
-        status: 'offline',
+        id: cameraId,
+        name: cameraId,
         authorized: true,
+        allowedPaths: [streamKey],
       }),
     });
 
+    if (deviceRes.ok) {
+      const createdDevice = (await deviceRes.json()) as DeviceWithSecret;
+      if (createdDevice.token) {
+        setDeviceTokens((prev) => ({ ...prev, [cameraId]: createdDevice.token as string }));
+      }
+    }
+
     if (res.ok) {
-      setNewCamera(defaultCameraForm);
+      // Selectionner la nouvelle camera immediatement
+      setSelectedCamera(newCameraData as Camera);
       await refreshAll();
       return;
     }
@@ -297,7 +365,7 @@ export default function AdminConsole() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: newCompetition.name,
-        location: newCompetition.location || null,
+        location: newCompetition.location || '',
         startAt: newCompetition.startAt
           ? new Date(newCompetition.startAt).toISOString()
           : new Date().toISOString(),
@@ -380,43 +448,14 @@ export default function AdminConsole() {
           <div className="space-y-4 xl:col-span-2">
             <div className="rounded-2xl border border-zinc-700 bg-zinc-900/30 p-4">
               <h2 className="text-xl font-semibold">Ajouter une camera</h2>
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <input
-                  value={newCamera.id}
-                  onChange={(e) => setNewCamera((prev) => ({ ...prev, id: e.target.value }))}
-                  placeholder="camera-main"
-                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
-                />
-                <input
-                  value={newCamera.name}
-                  onChange={(e) => setNewCamera((prev) => ({ ...prev, name: e.target.value }))}
-                  placeholder="Nom"
-                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
-                />
-                <input
-                  value={newCamera.location}
-                  onChange={(e) => setNewCamera((prev) => ({ ...prev, location: e.target.value }))}
-                  placeholder="Zone bloc"
-                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
-                />
-                <input
-                  value={newCamera.hlsUrl}
-                  onChange={(e) => setNewCamera((prev) => ({ ...prev, hlsUrl: e.target.value }))}
-                  placeholder="http://localhost:8888/main/index.m3u8"
-                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
-                />
-                <input
-                  value={newCamera.rtmpUrl}
-                  onChange={(e) => setNewCamera((prev) => ({ ...prev, rtmpUrl: e.target.value }))}
-                  placeholder="rtmp://localhost:1935/main"
-                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
-                />
-              </div>
+              <p className="mt-2 text-sm text-zinc-400">
+                ID, cle de stream et URLs seront generes automatiquement. Scannez le QR code pour configurer l appareil.
+              </p>
               <button
                 onClick={() => void createCamera()}
-                className="mt-3 rounded-xl bg-white px-4 py-2 font-semibold text-black"
+                className="mt-4 rounded-xl bg-white px-6 py-2 font-semibold text-black hover:bg-zinc-100"
               >
-                Creer camera
+                + Creer une camera
               </button>
             </div>
 
@@ -650,7 +689,11 @@ export default function AdminConsole() {
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Camera</p>
                     <CopyRow label="ID" value={selectedCamera.id} />
+                    <CopyRow label="Mot de passe RTMP" value={deviceTokens[selectedCamera.id] ?? 'non-defini'} />
                     <CopyRow label="Cle de stream (stream key)" value={streamUrls?.path ?? 'main'} />
+                    <p className="text-xs text-zinc-400">
+                      Important: dans l'app RTMP, le nom d'utilisateur doit etre l'ID de la camera, pas la cle de stream.
+                    </p>
                     <CopyRow
                       label="HLS"
                       value={selectedCamera.hlsUrl ?? `http://localhost:8888/${streamUrls?.path ?? 'main'}/index.m3u8`}

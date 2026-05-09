@@ -3,6 +3,8 @@
 import { useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 
+const PUBLIC_STREAM_HOST = process.env.NEXT_PUBLIC_STREAM_HOST?.trim() ?? '';
+
 function CopyRow({ label, value }: { label: string; value: string }) {
   const copyValue = async () => {
     try {
@@ -32,13 +34,19 @@ export default function OnboardClient() {
   const deviceId = searchParams.get('deviceId') ?? '';
   const token = searchParams.get('token') ?? '';
   const path = searchParams.get('path') ?? 'main';
+  const streamHostFromQuery = searchParams.get('streamHost') ?? '';
 
   const host = useMemo(() => {
-    if (typeof window === 'undefined') {
-      return 'localhost';
+    if (streamHostFromQuery) {
+      return streamHostFromQuery;
     }
-    return window.location.hostname;
-  }, []);
+
+    if (PUBLIC_STREAM_HOST) {
+      return PUBLIC_STREAM_HOST;
+    }
+
+    return 'localhost';
+  }, [streamHostFromQuery]);
 
   const rtmpUrl = `rtmp://${host}:1935/${path}`;
   const rtspUrl = `rtsp://${host}:8554/${path}`;

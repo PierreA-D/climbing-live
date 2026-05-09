@@ -18,11 +18,13 @@
 ```text
 Smartphones / Cameras
         |
-  RTMP / RTSP / SRT
+NEXT_PUBLIC_API_URL=http://localhost:8000/api
+NEXT_PUBLIC_APP_BASE_URL=http://localhost:3000
         |
      MediaMTX  (:8554 RTSP, :1935 RTMP, :8888 HLS, :9997 API)
         |
        HLS
+- `NEXT_PUBLIC_API_URL`: URL du backend appelee par le front.
         |
   Next.js API Route  (/api/cameras)
         |
@@ -71,6 +73,14 @@ docker compose up -d
 ```bash
 npm run dev
 ```
+
+Ou avec Docker (hot reload, sans rebuild a chaque changement):
+
+```bash
+docker compose up frontend mediamtx
+```
+
+Ensuite, les changements de code sont pris en compte automatiquement (HMR).
 
 Ouvrir ensuite **http://localhost:3000** (PC) ou **http://\<IP-LAN\>:3000** (mobile sur le même réseau).
 
@@ -218,7 +228,14 @@ Créer un fichier `.env.local` à la racine pour personnaliser les URLs :
 ```env
 MEDIAMTX_API_URL=http://localhost:9997
 HLS_BASE_URL=http://localhost:8888
+NEXT_PUBLIC_API_URL=http://localhost:8000/api
+NEXT_PUBLIC_APP_BASE_URL=http://localhost:3000
+NEXT_PUBLIC_STREAM_HOST=192.168.1.14
 ```
+
+- `NEXT_PUBLIC_API_URL`: URL du backend appelee par le front.
+- `NEXT_PUBLIC_APP_BASE_URL`: URL du front utilisee pour le QR code `/onboard`.
+- `NEXT_PUBLIC_STREAM_HOST`: hote utilise pour generer RTMP/RTSP/SRT/HLS.
 
 ---
 

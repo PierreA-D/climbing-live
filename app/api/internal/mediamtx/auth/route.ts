@@ -30,8 +30,48 @@ function normalizeId(value: unknown): string | null {
   return value.trim().toLowerCase();
 }
 
-export async function POST(request: Request) {
-  const payload = (await request.json().catch(() => null)) as AuthPayload | null;
+function getPathCandidates(rawPath: string | null | undefined): string[] {
+  const sanitized = sanitizePathName(rawPath);
+  if (!sanitized) {
+    return [];
+  }
+
+  const candidates = new Set<string>([sanitized]);
+  const parts = sanitized.split('/').filter(Boolean);
+  const lastPart = parts[parts.length - 1];
+  if (lastPart) {
+    candidates.add(lastPart);
+  }
+
+  return Array.from(candidates);
+}
+
+async function readAuthPayload(request: Request): Promise<AuthPayload | null> {
+  const contentType = request.headers.get('content-type') ?? '';
+
+  if (contentType.includes('application/json')) {
+    return (await request.json().catch(() => null)) as AuthPayload | null;
+  }
+
+  const url = new URL(request.url);
+  const payload: AuthPayload = {
+    user: url.searchParams.get('user') ?? undefined,
+    password: url.searchParams.get('password') ?? undefined,
+    action: url.searchParams.get('action') ?? undefined,
+    path: url.searchParams.get('path') ?? undefined,
+    ip: url.searchParams.get('ip') ?? undefined,
+    protocol: url.searchParams.get('protocol') ?? undefined,
+  };
+
+  if (!payload.user && !payload.password && !payload.action && !payload.path && !payload.ip && !payload.protocol) {
+    return null;
+  }
+
+  return payload;
+}
+
+async function handleAuth(request: Request) {
+  const payload = await readAuthPayload(request);
 
   if (!payload || typeof payload !== 'object') {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
@@ -40,6 +80,8 @@ export async function POST(request: Request) {
   const userId = normalizeId(payload.user);
   const password = typeof payload.password === 'string' ? payload.password : null;
   const pathName = sanitizePathName(payload.path);
+  const pathCandidates = getPathCandidates(payload.path);
+  const userCandidates = userId ? [userId] : [];
   const action = typeof payload.action === 'string' ? payload.action.toLowerCase() : 'publish';
   const ip = typeof payload.ip === 'string' ? payload.ip : null;
   const protocol = typeof payload.protocol === 'string' ? payload.protocol : null;
@@ -50,6 +92,29 @@ export async function POST(request: Request) {
     }
 
     let device = userId ? state.devices[userId] : undefined;
+    let resolvedByStreamKey = false;
+
+    if (!device && userCandidates.length > 0) {
+      const matches = Object.values(state.devices).filter((entry) =>
+        userCandidates.some((candidate) => entry.allowedPaths.includes(candidate))
+      );
+
+      if (matches.length === 1) {
+        device = matches[0];
+        resolvedByStreamKey = true;
+      }
+    }
+
+    if (!device && pathCandidates.length > 0) {
+      const matches = Object.values(state.devices).filter((entry) =>
+        pathCandidates.some((candidate) => entry.id === candidate || entry.allowedPaths.includes(candidate))
+      );
+
+      if (matches.length === 1) {
+        device = matches[0];
+        resolvedByStreamKey = true;
+      }
+    }
 
     if (!device && userId && state.settings.autoRegisterUnknownDevices) {
       device = createDevice({
@@ -77,7 +142,7 @@ export async function POST(request: Request) {
       return { allowed: false, reason: 'device-not-authorized', device: toPublicDevice(device, false) };
     }
 
-    if (state.settings.requireDeviceAuth && password !== null && password !== device.token) {
+    if (state.settings.requireDeviceAuth && !resolvedByStreamKey && password !== null && password !== device.token) {
       return { allowed: false, reason: 'invalid-token', device: toPublicDevice(device, false) };
     }
 
@@ -116,4 +181,12 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(decision);
+}
+
+export async function GET(request: Request) {
+  return handleAuth(request);
+}
+
+export async function POST(request: Request) {
+  return handleAuth(request);
 }

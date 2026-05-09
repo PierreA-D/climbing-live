@@ -1,5 +1,5 @@
-# Build stage
-FROM node:20-alpine as builder
+# Base deps stage
+FROM node:20-alpine as deps
 
 WORKDIR /app
 
@@ -8,6 +8,28 @@ COPY package*.json ./
 
 # Install dependencies
 RUN npm ci
+
+# Development stage
+FROM node:20-alpine as dev
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY package*.json ./
+
+ENV NODE_ENV=development
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3000"]
+
+# Build stage
+FROM node:20-alpine as builder
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY package*.json ./
 
 # Copy application
 COPY . .

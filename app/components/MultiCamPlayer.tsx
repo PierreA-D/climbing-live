@@ -11,7 +11,7 @@ type Camera = {
   url: string;
 };
 
-const API_BASE = '/api';
+const API_BASE = `${process.env.NEXT_PUBLIC_APP_BASE_URL}/api`;
 
 export default function MultiCamPlayer() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -25,6 +25,7 @@ export default function MultiCamPlayer() {
         const res = await fetch(`${API_BASE}/cameras`);
         if (!res.ok) return;
         const data: Camera[] = await res.json();
+        console.log('Cameras:', data);
         setCameras(data);
         // Ne reset la caméra courante que si elle n'existe plus dans la nouvelle liste
         setCurrentCamera((prev) => {

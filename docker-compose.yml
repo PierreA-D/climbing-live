@@ -4,11 +4,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: dev
     restart: unless-stopped
+    command: npm run dev -- --hostname 0.0.0.0 --port 3000
+    volumes:
+      - ./:/app
+      - ./.data:/app/.data
+      - /app/node_modules
+      - /app/.next
     ports:
       - '3000:3000'
     environment:
-      - NEXT_PUBLIC_API_URL=http://host.docker.internal:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+      - NEXT_PUBLIC_APP_BASE_URL=http://localhost:3000
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     depends_on:
       - mediamtx
 
