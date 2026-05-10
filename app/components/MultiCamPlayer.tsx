@@ -5,41 +5,16 @@ import videojs from 'video.js';
 import type Player from 'video.js/dist/types/player';
 import 'video.js/dist/video-js.css';
 
-type Camera = {
-  id: string;
-  name: string;
-  url: string;
+import type { CameraStream } from '@/lib/backend/cameras';
+
+type MultiCamPlayerProps = {
+  initialCameras: CameraStream[];
 };
 
-const API_BASE = '/api';
-
-export default function MultiCamPlayer() {
+export default function MultiCamPlayer({ initialCameras }: MultiCamPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerRef = useRef<Player | null>(null);
-  const [cameras, setCameras] = useState<Camera[]>([]);
-  const [currentCamera, setCurrentCamera] = useState<Camera | null>(null);
-
-  useEffect(() => {
-    const fetchCameras = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/cameras`);
-        if (!res.ok) return;
-        const data: Camera[] = await res.json();
-        setCameras(data);
-        // Ne reset la caméra courante que si elle n'existe plus dans la nouvelle liste
-        setCurrentCamera((prev) => {
-          if (prev && data.some((c) => c.id === prev.id)) return prev;
-          return data[0] ?? null;
-        });
-      } catch {
-        // silently fail, no streams available
-      }
-    };
-
-    void fetchCameras();
-    const interval = setInterval(() => void fetchCameras(), 10000);
-    return () => clearInterval(interval);
-  }, []);
+  const [currentCamera, setCurrentCamera] = useState<CameraStream | null>(initialCameras[0] ?? null);
 
   useEffect(() => {
     if (!videoRef.current || !currentCamera) {
@@ -102,7 +77,7 @@ export default function MultiCamPlayer() {
         </a>
       </div>
 
-      {cameras.length === 0 ? (
+      {initialCameras.length === 0 ? (
         <p className="text-zinc-400">Aucun flux actif pour le moment.</p>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
@@ -113,7 +88,7 @@ export default function MultiCamPlayer() {
           </div>
 
           <div className="space-y-3">
-            {cameras.map((camera) => (
+            {initialCameras.map((camera) => (
               <button
                 key={camera.id}
                 onClick={() => setCurrentCamera(camera)}
