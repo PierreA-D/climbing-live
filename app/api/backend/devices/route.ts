@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { listMediaMtxPaths, withLiveDeviceState } from '@/lib/backend/mediamtx';
 import {
   createDevice,
   createDeviceToken,
@@ -35,9 +36,11 @@ export async function GET(request: Request) {
   const includeSecrets = searchParams.get('includeSecrets') === 'true';
 
   const state = await readState();
+  const livePaths = await listMediaMtxPaths(state.settings.mediamtxApiUrl).catch(() => []);
 
   const devices = Object.values(state.devices)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((device) => withLiveDeviceState(device, livePaths))
     .map((device) => toPublicDevice(device, includeSecrets));
 
   return NextResponse.json(devices);

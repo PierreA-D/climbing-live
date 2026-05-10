@@ -19,7 +19,7 @@ export async function GET() {
     const streams = paths.map((path) => ({
       ...path,
       authorized: allowedPaths.size === 0 ? true : allowedPaths.has(path.name),
-      hlsUrl: `${state.settings.hlsBaseUrl}/${path.name}/index.m3u8`,
+      hlsUrl: `${state.settings.hlsBaseUrl}/${path.rawName}/index.m3u8`,
     }));
 
     return NextResponse.json(streams);

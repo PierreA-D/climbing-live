@@ -1,41 +1,30 @@
 import { NextResponse } from 'next/server';
 
-export const runtime = 'nodejs';
+import { isMediaMtxPathLive, listMediaMtxPaths } from '@/lib/backend/mediamtx';
+import { readState } from '@/lib/backend/store';
 
-type ApiCamera = {
-  id: string;
-  name: string;
-  status?: string;
-  hlsUrl?: string | null;
-};
+export const runtime = 'nodejs';
 
 export async function GET() {
   try {
-    const apiBaseUrl = `${process.env.NEXT_PUBLIC_APP_BASE_URL}/api`;
-    const response = await fetch(`${apiBaseUrl}/cameras`, {
-      cache: 'no-store',
-    });
+    const state = await readState();
+    const paths = await listMediaMtxPaths(state.settings.mediamtxApiUrl);
 
-    if (!response.ok) {
-      return NextResponse.json(
-        {
-          error: 'Failed to fetch cameras from backend API',
-          status: response.status,
-        },
-        { status: 502 }
-      );
-    }
+    const allowedPaths = new Set(
+      Object.values(state.devices)
+        .filter((device) => device.authorized && !device.blocked)
+        .flatMap((device) => device.allowedPaths)
+    );
 
-    const data = (await response.json()) as ApiCamera[];
-    const cameras = data
-      .map((camera) => ({
-        id: camera.id,
-        name: camera.name,
-        url: camera.hlsUrl ?? '',
-        status: camera.status ?? 'offline',
-      }))
-      .filter((camera) => camera.url.length > 0)
-      .filter((camera) => camera.status === 'online');
+    const cameras = paths
+      .filter(isMediaMtxPathLive)
+      .filter((path) => allowedPaths.size === 0 || allowedPaths.has(path.name))
+      .map((path) => ({
+        id: path.name,
+        name: path.name,
+        url: `${state.settings.hlsBaseUrl}/${path.rawName}/index.m3u8`,
+        status: 'online' as const,
+      }));
 
     return NextResponse.json(cameras);
   } catch (error) {

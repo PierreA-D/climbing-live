@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { listMediaMtxPaths, withLiveDeviceState } from '@/lib/backend/mediamtx';
 import { mutateState, normalizePathList, readState, toPublicDevice, touchDevice } from '@/lib/backend/store';
 
 export const runtime = 'nodejs';
@@ -28,7 +29,8 @@ export async function GET(_request: Request, context: Params) {
     return NextResponse.json({ error: 'Device not found' }, { status: 404 });
   }
 
-  return NextResponse.json(toPublicDevice(device, false));
+  const livePaths = await listMediaMtxPaths(state.settings.mediamtxApiUrl).catch(() => []);
+  return NextResponse.json(toPublicDevice(withLiveDeviceState(device, livePaths), false));
 }
 
 export async function PATCH(request: Request, context: Params) {

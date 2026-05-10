@@ -17,6 +17,8 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000/api
       - NEXT_PUBLIC_APP_BASE_URL=http://localhost:3000
+      - MEDIAMTX_API_URL=http://mediamtx:9997
+      - HLS_BASE_URL=http://localhost:8888
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
     depends_on:

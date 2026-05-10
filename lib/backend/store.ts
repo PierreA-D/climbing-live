@@ -29,6 +29,21 @@ export function createDefaultSettings(): BackendSettings {
   };
 }
 
+function resolveUrlSetting(stateValue: string | undefined, envValue: string | undefined, fallback: string): string {
+  const normalizedState = typeof stateValue === 'string' && stateValue.trim().length > 0 ? stateValue.trim() : '';
+  const normalizedEnv = typeof envValue === 'string' && envValue.trim().length > 0 ? envValue.trim() : '';
+
+  if (!normalizedEnv) {
+    return normalizedState || fallback;
+  }
+
+  if (!normalizedState || normalizedState === fallback) {
+    return normalizedEnv;
+  }
+
+  return normalizedState;
+}
+
 function createInitialState(): BackendState {
   const ts = nowIso();
   return {
@@ -51,11 +66,23 @@ async function ensureStateFile(): Promise<void> {
 }
 
 function mergeWithDefaults(state: BackendState): BackendState {
+  const defaults = createDefaultSettings();
+
   return {
     ...state,
     settings: {
-      ...createDefaultSettings(),
+      ...defaults,
       ...(state.settings ?? {}),
+      mediamtxApiUrl: resolveUrlSetting(
+        state.settings?.mediamtxApiUrl,
+        process.env.MEDIAMTX_API_URL,
+        defaults.mediamtxApiUrl
+      ),
+      hlsBaseUrl: resolveUrlSetting(
+        state.settings?.hlsBaseUrl,
+        process.env.HLS_BASE_URL,
+        defaults.hlsBaseUrl
+      ),
     },
     devices: state.devices ?? {},
   };
