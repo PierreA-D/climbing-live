@@ -1,9 +1,6 @@
-import MultiCamPlayer from './components/MultiCamPlayer';
-
-import { listActiveCameraStreams } from '@/lib/backend/cameras';
+import Home from './home/home';
 
 export default async function HomePage() {
-  const cameras = await listActiveCameraStreams().catch(() => []);
-
-  return <MultiCamPlayer initialCameras={cameras} />;
+  
+  return <Home />;
 }
