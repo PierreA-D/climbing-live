@@ -25,7 +25,7 @@ export default function Home() {
     return (
         <div>
             <Banner />
-            <Categories />
+            {/* <Categories /> */}
             <Streams />
 
             {/* UPCOMING EVENTS */}

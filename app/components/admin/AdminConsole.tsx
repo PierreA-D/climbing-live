@@ -5,8 +5,6 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
 
-import LogoutButton from '@/app/components/auth/LogoutButton';
-
 type CompetitionStatus = 'scheduled' | 'live' | 'finished';
 
 type Camera = {
@@ -426,7 +424,6 @@ export default function AdminConsole({ userName }: AdminConsoleProps) {
             <p className="mt-1 text-sm text-zinc-500">Session ouverte: {userName}</p>
           </div>
           <div className="flex items-center gap-3">
-            <LogoutButton />
             <Link href="/" className="rounded-xl bg-white px-4 py-2 font-semibold text-black">
               Retour au live
             </Link>
