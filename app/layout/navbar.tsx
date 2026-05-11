@@ -74,9 +74,12 @@ export default function Navbar() {
                     />
                 </div>
 
-                <button className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold transition hover:bg-orange-400 ">
+                <Link
+                    href="/login"
+                    className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold transition hover:bg-orange-400"
+                >
                     Se connecter
-                </button>
+                </Link>
             </div>
         </div>
     </header>

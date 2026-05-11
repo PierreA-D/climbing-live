@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { getSession } from '@/lib/auth/session';
 import { listMediaMtxPaths, withLiveDeviceState } from '@/lib/backend/mediamtx';
 import { mutateState, normalizePathList, readState, toPublicDevice, touchDevice } from '@/lib/backend/store';
 
@@ -21,6 +22,11 @@ type Params = {
 };
 
 export async function GET(_request: Request, context: Params) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { id } = await context.params;
   const state = await readState();
   const device = state.devices[id];
@@ -34,6 +40,11 @@ export async function GET(_request: Request, context: Params) {
 }
 
 export async function PATCH(request: Request, context: Params) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { id } = await context.params;
   const payload = (await request.json().catch(() => null)) as DevicePatchPayload | null;
 
@@ -69,6 +80,11 @@ export async function PATCH(request: Request, context: Params) {
 }
 
 export async function DELETE(_request: Request, context: Params) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { id } = await context.params;
 
   const deleted = await mutateState((state) => {

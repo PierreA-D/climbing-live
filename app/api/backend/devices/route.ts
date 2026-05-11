@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { listMediaMtxPaths, withLiveDeviceState } from '@/lib/backend/mediamtx';
+import { getSession } from '@/lib/auth/session';
 import {
   createDevice,
   createDeviceToken,
@@ -32,6 +33,11 @@ function normalizeDeviceId(value: unknown): string | null {
 }
 
 export async function GET(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const includeSecrets = searchParams.get('includeSecrets') === 'true';
 
@@ -47,6 +53,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const payload = (await request.json().catch(() => null)) as DeviceCreatePayload | null;
 
   if (!payload || typeof payload !== 'object') {

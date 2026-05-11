@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
 
+import LogoutButton from '@/app/components/auth/LogoutButton';
+
 type CompetitionStatus = 'scheduled' | 'live' | 'finished';
 
 type Camera = {
@@ -57,7 +59,7 @@ const defaultCompetitionForm = {
   status: 'scheduled' as CompetitionStatus,
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.trim() || 'http://localhost:8000/api';
+const API_BASE = '/api/admin';
 const PUBLIC_APP_BASE_URL = process.env.NEXT_PUBLIC_APP_BASE_URL?.trim() ?? '';
 const PUBLIC_STREAM_HOST = process.env.NEXT_PUBLIC_STREAM_HOST?.trim() ?? '';
 
@@ -103,7 +105,11 @@ function CopyRow({ label, value, mono = true }: CopyRowProps) {
   );
 }
 
-export default function AdminConsole() {
+type AdminConsoleProps = {
+  userName: string;
+};
+
+export default function AdminConsole({ userName }: AdminConsoleProps) {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
@@ -133,7 +139,7 @@ export default function AdminConsole() {
     ]);
 
     if (!camerasRes.ok || !athletesRes.ok || !competitionsRes.ok) {
-      setErrorMessage('Impossible de charger les donnees depuis l API Symfony.');
+      setErrorMessage('Impossible de charger les donnees de la console admin securisee.');
       return;
     }
 
@@ -417,10 +423,14 @@ export default function AdminConsole() {
           <div>
             <h1 className="text-3xl font-bold">Admin API Symfony</h1>
             <p className="text-zinc-400">Gestion des cameras, grimpeurs et competitions.</p>
+            <p className="mt-1 text-sm text-zinc-500">Session ouverte: {userName}</p>
           </div>
-          <Link href="/" className="rounded-xl bg-white px-4 py-2 font-semibold text-black">
-            Retour au live
-          </Link>
+          <div className="flex items-center gap-3">
+            <LogoutButton />
+            <Link href="/" className="rounded-xl bg-white px-4 py-2 font-semibold text-black">
+              Retour au live
+            </Link>
+          </div>
         </header>
 
         {errorMessage ? (
