@@ -1,5 +1,6 @@
-import { Calendar, ChevronRight, MapPin, Radio, Trophy } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 import Link from 'next/link';
+import LiveCompetitionThumbnail from '@/app/components/LiveCompetitionThumbnail';
 import { listLiveCompetitions } from '@/lib/backend/competitions';
 
 function formatCategory(value: string | null) {
@@ -34,10 +35,12 @@ export default async function Streams() {
                     >
                         <Link href="/">
                             <div className="relative overflow-hidden">
-                                <img
-                                    src={competition.image}
+                                <LiveCompetitionThumbnail
+                                    previewUrl={competition.previewUrl}
+                                    fallbackSrc={competition.image}
                                     alt={competition.name}
-                                    className="h-56 w-full object-cover transition duration-300 group-hover:scale-105"
+                                    mode="snapshot"
+                                    className="h-56 w-full transition duration-300 group-hover:scale-105"
                                 />
 
                                 <div className="absolute left-4 top-4 rounded-lg bg-red-500 px-2 py-1 text-xs font-bold">

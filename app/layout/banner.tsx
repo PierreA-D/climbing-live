@@ -1,6 +1,20 @@
 import { Play } from 'lucide-react';
+import Link from 'next/link';
+import LiveCompetitionThumbnail from '@/app/components/LiveCompetitionThumbnail';
+import { listLiveCompetitions } from '@/lib/backend/competitions';
 
-export default function Banner() {
+function formatCategory(value: string | null) {
+    if (!value) {
+        return 'Sans categorie';
+    }
+
+    return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+export default async function Banner() {
+    const liveCompetitions = await listLiveCompetitions().catch(() => []);
+    const featuredCompetition = liveCompetitions[0] ?? null;
+
   return (
     <section className="relative">
         <div
@@ -15,12 +29,12 @@ export default function Banner() {
 
         <div className="relative mx-auto flex max-w-7xl flex-col gap-10 px-6 py-20 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl">
-                {/* <div className="mb-5 flex items-center gap-2">
+                <div className="mb-5 flex items-center gap-2">
                     <div className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
                     <span className="text-sm font-medium uppercase tracking-wider text-red-400">
                         En direct
                     </span>
-                </div> */}
+                </div>
 
                 <h2 className="text-5xl font-black leading-tight md:text-7xl whitespace-nowrap">
                     L’escalade en live,
@@ -33,7 +47,8 @@ export default function Banner() {
                 </p>
             </div>
             
-            {/* <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+            {featuredCompetition ? (
+            <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
                 <div className="mb-5 flex items-center justify-between">
                     <h3 className="text-lg font-bold">
                         Top compétition
@@ -44,29 +59,34 @@ export default function Banner() {
                     </div>
                 </div>
 
-                <img
-                    src="https://images.unsplash.com/photo-1522163182402-834f871fd851?q=80&w=1200&auto=format&fit=crop"
-                    alt="competition"
-                    className="h-52 w-full rounded-2xl object-cover"
+                <LiveCompetitionThumbnail
+                    previewUrl={featuredCompetition.previewUrl}
+                    fallbackSrc={featuredCompetition.image}
+                    alt={featuredCompetition.name}
+                    className="h-52 w-full rounded-2xl"
                 />
 
                 <div className="mt-4">
                     <h4 className="text-xl font-bold">
-                        IFSC World Cup Prague
+                        {featuredCompetition.name}
                     </h4>
 
                     <div className="mt-2 flex items-center gap-4 text-sm text-zinc-400">
-                        <span>Bloc</span>
+                        <span>{formatCategory(featuredCompetition.category)}</span>
                         <span>•</span>
-                        <span>18.2k spectateurs</span>
+                        <span>{featuredCompetition.viewers ?? 0} spectateurs</span>
                     </div>
 
-                    <button className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3 font-semibold text-black transition hover:opacity-90">
+                    <Link
+                        href="/multicam"
+                        className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3 font-semibold text-black transition hover:opacity-90"
+                    >
                         <Play className="h-4 w-4 fill-black" />
                         Rejoindre le stream
-                    </button>
+                    </Link>
                 </div>
-            </div> */}
+            </div>
+            ) : null}
         </div>
     </section>
   );

@@ -1,6 +1,5 @@
 import { getBackendApiBase } from '@/lib/auth/backend';
-import { listMediaMtxPaths } from '@/lib/backend/mediamtx';
-import { readState } from '@/lib/backend/store';
+import { listActiveCameraStreams } from '@/lib/backend/cameras';
 
 export type CompetitionStatus = 'scheduled' | 'live' | 'finished';
 export type CompetitionCategory = 'block' | 'speed' | 'difficulty' | 'team';
@@ -8,11 +7,14 @@ export type CompetitionCategory = 'block' | 'speed' | 'difficulty' | 'team';
 export type PublicCompetition = {
   id: number;
   name: string;
+  image?: string | null;
   location: string | null;
   startAt: string;
   endAt: string | null;
   status: CompetitionStatus | string | null;
   category: CompetitionCategory | string | null;
+  viewers?: number | null;
+  previewUrl?: string | null;
 };
 
 function resolveCompetitionStatus(competition: Pick<PublicCompetition, 'startAt'>, now: Date, hasRtmpStream: boolean): CompetitionStatus {
@@ -28,26 +30,6 @@ function resolveCompetitionStatus(competition: Pick<PublicCompetition, 'startAt'
   }
 
   return 'finished';
-}
-
-async function hasLiveRtmpStream(): Promise<boolean> {
-  try {
-    const state = await readState();
-    const paths = await listMediaMtxPaths(state.settings.mediamtxApiUrl);
-    const allowedPaths = new Set(
-      Object.values(state.devices)
-        .filter((device) => device.authorized && !device.blocked)
-        .flatMap((device) => device.allowedPaths)
-    );
-
-    return paths.some(
-      (path) =>
-        (allowedPaths.size === 0 || allowedPaths.has(path.name)) &&
-        (path.ready || path.readersCount > 0 || path.source !== null)
-    );
-  } catch {
-    return false;
-  }
 }
 
 function normalizeCompetitionCollection(payload: unknown): PublicCompetition[] {
@@ -95,12 +77,14 @@ export async function listCompetitions(): Promise<PublicCompetition[]> {
 export async function listLiveCompetitions(): Promise<PublicCompetition[]> {
   const competitions = await listCompetitions();
   const now = new Date();
-  const liveRtmpStream = await hasLiveRtmpStream();
+  const liveCameras = await listActiveCameraStreams().catch(() => []);
+  const previewUrl = liveCameras[0]?.url ?? null;
 
   return competitions
     .map((competition) => ({
       ...competition,
-      status: resolveCompetitionStatus(competition, now, liveRtmpStream),
+      status: resolveCompetitionStatus(competition, now, liveCameras.length > 0),
+      previewUrl,
     }))
     .filter((competition) => competition.status === 'live');
 }
