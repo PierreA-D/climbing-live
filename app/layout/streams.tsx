@@ -1,71 +1,23 @@
-'use client';
-
-import { ChevronRight, Trophy } from 'lucide-react';
+import { Calendar, ChevronRight, MapPin, Radio, Trophy } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { listLiveCompetitions } from '@/lib/backend/competitions';
 
-export default function Streams() {
-        
-    // const [liveCompetitions, setLiveCompetitions] = useState<LiveCompetition[]>([]);
+function formatCategory(value: string | null) {
+    if (!value) {
+        return 'Sans categorie';
+    }
 
-    const [liveCompetitions, setLiveCompetitions] = useState([
-        {
-            id: 1,
-            title: 'Coupe du Monde Bloc - Finale Hommes',
-            viewers: '12.4k',
-            image:
-                'https://images.unsplash.com/photo-1522163182402-834f871fd851?q=80&w=1600&auto=format&fit=crop',
-            category: 'Bloc',
-            live: true,
-        },
-        {
-            id: 2,
-            title: 'Open National Difficulté',
-            viewers: '4.8k',
-            image:
-                'https://images.unsplash.com/photo-1516592673884-4a382d1124c2?q=80&w=1600&auto=format&fit=crop',
-            category: 'Difficulté',
-            live: true,
-        },
-        {
-            id: 3,
-            title: 'Championat Europe Vitesse',
-            viewers: '8.2k',
-            image:
-                'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?q=80&w=1600&auto=format&fit=crop',
-            category: 'Vitesse',
-            live: true,
-        },
-        {
-            id: 4,
-            title: 'Coupe du Monde Bloc - Finale Hommes',
-            viewers: '12.4k',
-            image:
-                'https://images.unsplash.com/photo-1522163182402-834f871fd851?q=80&w=1600&auto=format&fit=crop',
-            category: 'Bloc',
-            live: true,
-        },
-        {
-            id: 5,
-            title: 'Open National Difficulté',
-            viewers: '4.8k',
-            image:
-                'https://images.unsplash.com/photo-1516592673884-4a382d1124c2?q=80&w=1600&auto=format&fit=crop',
-            category: 'Difficulté',
-            live: true,
-        },
-        {
-            id: 6,
-            title: 'Championat Europe Vitesse',
-            viewers: '8.2k',
-            image:
-                'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?q=80&w=1600&auto=format&fit=crop',
-            category: 'Vitesse',
-            live: true,
-        },
-    ]);
+    return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+export default async function Streams() {
+    const liveCompetitions = await listLiveCompetitions();
+
+    if (liveCompetitions.length === 0) {
+        return null;
+    }
+
     return (
-        liveCompetitions.length > 0 && (
         <section className="mx-auto max-w-7xl px-6 py-6">
             <div className="mb-8 flex items-center justify-between">
                 <h3 className="flex items-center gap-3 text-2xl font-bold">
@@ -84,28 +36,27 @@ export default function Streams() {
                             <div className="relative overflow-hidden">
                                 <img
                                     src={competition.image}
-                                    alt={competition.title}
+                                    alt={competition.name}
                                     className="h-56 w-full object-cover transition duration-300 group-hover:scale-105"
                                 />
 
                                 <div className="absolute left-4 top-4 rounded-lg bg-red-500 px-2 py-1 text-xs font-bold">
-                                    LIVE
+                                    {competition.status === 'live' ? 'EN DIRECT' : 'PROGRAMMÉ'}
                                 </div>
 
                                 <div className="absolute left-4 bottom-4 rounded-lg bg-orange-500/80 px-2 py-1 text-xs font-bold">
-                                    {competition.category}
+                                    {formatCategory(competition.category)}
                                 </div>
 
                                 <div className="absolute bottom-4 right-4 rounded-lg bg-black/70 px-2 py-1 text-xs font-semibold">
-                                    {competition.viewers} viewers
+                                    {competition.viewers ?? 0} viewers
                                 </div>
                             </div>
 
                             <div className="p-5">
                                 <h4 className="text-lg font-bold leading-snug">
-                                    {competition.title}
+                                    {competition.name}
                                 </h4>
-
                                 {/* <button className="mt-5 flex items-center gap-2 text-sm font-semibold text-orange-400 transition hover:text-orange-300">
                                     Regarder maintenant
                                     <ChevronRight className="h-4 w-4" />
@@ -115,6 +66,6 @@ export default function Streams() {
                     </div>
                 ))}
             </div>
-        </section>)
-  );
+        </section>
+    );
 }
