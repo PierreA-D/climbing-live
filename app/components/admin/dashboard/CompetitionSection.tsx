@@ -1,9 +1,27 @@
 'use client';
 
-import type {
-  CompetitionCategory,
-} from '@/app/components/admin/dashboard/types';
+import type { CompetitionCategory } from '@/app/components/admin/dashboard/types';
 import type { CompetitionSectionController } from '@/app/components/admin/dashboard/useCompetitionSection';
+import Select from "react-select";
+import { selectStyles } from "@/styles/selectStyles";
+import ReactCountryFlag from "react-country-flag";
+
+import countries from "i18n-iso-countries";
+import fr from "i18n-iso-countries/langs/fr.json";
+
+countries.registerLocale(fr);
+
+const countryOptions = Object.entries(
+  countries.getNames("fr")
+).map(([code, name]) => ({
+  value: name,
+  label: (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <ReactCountryFlag countryCode={code} svg />
+      {name}
+    </div>
+  ),
+}));
 
 type CompetitionSectionProps = {
   competition: CompetitionSectionController;
@@ -60,13 +78,21 @@ export default function CompetitionSection({
               placeholder="Nom compétition"
               className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
             />
-            <input
-              value={newCompetition.location}
-              onChange={(e) =>
-                setNewCompetition((prev) => ({ ...prev, location: e.target.value }))
+            <Select
+              placeholder="Location"
+              options={countryOptions}
+              value={
+                countryOptions.find(
+                  (c) => c.value === newCompetition.location
+                ) || null
               }
-              placeholder="Lieu"
-              className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2"
+              onChange={(selected) =>
+                setNewCompetition((prev) => ({
+                  ...prev,
+                  location: selected?.value || "",
+                }))
+              }
+              styles={selectStyles}
             />
             <label className="flex items-center gap-3 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200">
               <input

@@ -29,12 +29,12 @@ export default async function Banner() {
 
         <div className="relative mx-auto flex max-w-7xl flex-col gap-10 px-6 py-20 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl">
-                <div className="mb-5 flex items-center gap-2">
+                {/* <div className="mb-5 flex items-center gap-2">
                     <div className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
                     <span className="text-sm font-medium uppercase tracking-wider text-red-400">
                         En direct
                     </span>
-                </div>
+                </div> */}
 
                 <h2 className="text-5xl font-black leading-tight md:text-7xl whitespace-nowrap">
                     L’escalade en live,

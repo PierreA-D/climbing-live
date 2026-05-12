@@ -457,60 +457,60 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
                     + Creer une camera
                   </button>
                 </div>
-
-                <div className="rounded-2xl border border-zinc-700 bg-zinc-900/30 p-4">
-                  <h2 className="text-xl font-semibold">Cameras</h2>
-                  <div className="mt-3 space-y-3">
-                    {cameras.map((camera) => (
-                      <div key={camera.id} className="rounded-xl border border-zinc-700 bg-zinc-950/80 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div>
-                            <p className="font-semibold">{camera.name}</p>
-                            <p className="text-xs text-zinc-400">{camera.id}</p>
-                            <p className="text-xs text-zinc-400">
-                              Zone: {camera.location || 'n/a'} | Statut: {camera.status}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() =>
-                                void patchCamera(camera.id, { authorized: !camera.authorized })
-                              }
-                              className="rounded-lg border border-zinc-600 px-3 py-1 text-sm"
-                            >
-                              {camera.authorized ? 'Retirer autorisation' : 'Autoriser'}
-                            </button>
-                            <button
-                              onClick={() =>
-                                void patchCamera(camera.id, {
-                                  status: camera.status === 'online' ? 'offline' : 'online',
-                                })
-                              }
-                              className="rounded-lg border border-zinc-600 px-3 py-1 text-sm"
-                            >
-                              {camera.status === 'online' ? 'Passer offline' : 'Passer online'}
-                            </button>
-                            <button
-                              onClick={() => setSelectedCamera(camera)}
-                              className="rounded-lg bg-white px-3 py-1 text-sm font-semibold text-black"
-                            >
-                              QR onboarding
-                            </button>
-                            <button
-                              onClick={() => void deleteCamera(camera.id)}
-                              className="rounded-lg border border-red-500/60 px-3 py-1 text-sm text-red-300"
-                            >
-                              Supprimer
-                            </button>
+                {cameras.length > 0 && (
+                  <div className="rounded-2xl border border-zinc-700 bg-zinc-900/30 p-4">
+                    <h2 className="text-xl font-semibold">Liste des cameras</h2>
+                    <div className="mt-3 space-y-3">
+                      {cameras.map((camera) => (
+                        <div key={camera.id} className="rounded-xl border border-zinc-700 bg-zinc-950/80 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="font-semibold">{camera.name}</p>
+                              <p className="text-xs text-zinc-400">{camera.id}</p>
+                              <p className="text-xs text-zinc-400">
+                                Zone: {camera.location || 'n/a'} | Statut: {camera.status}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={() =>
+                                  void patchCamera(camera.id, { authorized: !camera.authorized })
+                                }
+                                className="rounded-lg border border-zinc-600 px-3 py-1 text-sm"
+                              >
+                                {camera.authorized ? 'Retirer autorisation' : 'Autoriser'}
+                              </button>
+                              <button
+                                onClick={() =>
+                                  void patchCamera(camera.id, {
+                                    status: camera.status === 'online' ? 'offline' : 'online',
+                                  })
+                                }
+                                className="rounded-lg border border-zinc-600 px-3 py-1 text-sm"
+                              >
+                                {camera.status === 'online' ? 'Passer offline' : 'Passer online'}
+                              </button>
+                              <button
+                                onClick={() => setSelectedCamera(camera)}
+                                className="rounded-lg bg-white px-3 py-1 text-sm font-semibold text-black"
+                              >
+                                QR onboarding
+                              </button>
+                              <button
+                                onClick={() => void deleteCamera(camera.id)}
+                                className="rounded-lg border border-red-500/60 px-3 py-1 text-sm text-red-300"
+                              >
+                                Supprimer
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
-            ) :            
-              <CompetitionSection
+            ) : <CompetitionSection
                 competition={competitionSection}
                 activeCompetitionId={selectedCompetition?.id ?? null}
                 onOpenCompetition={(competitionId) => {
