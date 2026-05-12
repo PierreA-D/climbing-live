@@ -32,7 +32,7 @@ export default function LoginForm() {
       return;
     }
 
-    router.replace('/admin');
+    router.replace('/admin/dashboard');
     router.refresh();
   };
 

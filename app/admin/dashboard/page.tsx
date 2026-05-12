@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-import AdminConsole from '@/app/components/admin/AdminConsole';
+import AdminDashboard from '@/app/components/admin/dashboard/AdminDashboard';
 import { getSession } from '@/lib/auth/session';
 
 export default async function AdminPage() {
@@ -10,5 +10,5 @@ export default async function AdminPage() {
     redirect('/login');
   }
 
-  return <AdminConsole userName={session.name} />;
+  return <AdminDashboard userName={session.name} />;
 }

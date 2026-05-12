@@ -107,7 +107,7 @@ type AdminConsoleProps = {
   userName: string;
 };
 
-export default function AdminConsole({ userName }: AdminConsoleProps) {
+export default function AdminDashboard({ userName }: AdminConsoleProps) {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
@@ -437,14 +437,14 @@ export default function AdminConsole({ userName }: AdminConsoleProps) {
         ) : null}
 
         <section className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4">
+          {/* <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4">
             <p className="text-sm text-zinc-400">Cameras enregistrees</p>
             <p className="text-3xl font-bold">{cameras.length}</p>
           </div>
           <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4">
             <p className="text-sm text-zinc-400">Cameras en ligne</p>
             <p className="text-3xl font-bold">{connectedCount}</p>
-          </div>
+          </div> */}
           <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4">
             <p className="text-sm text-zinc-400">Competitions</p>
             <p className="text-3xl font-bold">{competitions.length}</p>
@@ -517,7 +517,7 @@ export default function AdminConsole({ userName }: AdminConsoleProps) {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-zinc-700 bg-zinc-900/30 p-4">
+            {/* <div className="rounded-2xl border border-zinc-700 bg-zinc-900/30 p-4">
               <h2 className="text-xl font-semibold">Grimpeurs</h2>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <input
@@ -571,7 +571,7 @@ export default function AdminConsole({ userName }: AdminConsoleProps) {
                   </div>
                 ))}
               </div>
-            </div>
+            </div> */}
 
             <div className="rounded-2xl border border-zinc-700 bg-zinc-900/30 p-4">
               <h2 className="text-xl font-semibold">Competitions</h2>

@@ -72,13 +72,10 @@ export default async function Navbar() {
                 </div>
                 {session && (
                     <Link
-                        href="/admin"
-                        className="inline-flex items-center gap-3 rounded-xl p-2 border border-orange-400 text-orange-400 transition hover:text-orange-300 text-white"
+                        href="/admin/dashboard"
+                        className="text-sm text-zinc-300 transition hover:text-white"
                     >
-                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-500 text-white">
-                            <Plus className="h-4 w-4" />
-                        </span>
-                        <span>Lancer un live</span>
+                        Tableau de bord
                     </Link>
                 )}
             </div>
