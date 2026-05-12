@@ -48,7 +48,7 @@ export async function POST(request: Request) {
           ? backendResponse.status
           : 502;
       return NextResponse.json(
-        { error: result?.error ?? 'Connexion au backend impossible.' },
+        { error: result?.error ?? 'Connexion impossible.' },
         { status },
       );
     }
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       typeof result.user?.name !== 'string' ||
       result.user.role !== 'admin'
     ) {
-      return NextResponse.json({ error: 'Reponse de connexion invalide.' }, { status: 502 });
+      return NextResponse.json({ error: 'Réponse de connexion invalide.' }, { status: 502 });
     }
 
     const response = NextResponse.json({
@@ -84,6 +84,6 @@ export async function POST(request: Request) {
 
     return response;
   } catch {
-    return NextResponse.json({ error: 'Backend de connexion indisponible.' }, { status: 502 });
+    return NextResponse.json({ error: 'Connexion indisponible.' }, { status: 502 });
   }
 }

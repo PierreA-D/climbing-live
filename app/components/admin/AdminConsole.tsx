@@ -137,7 +137,7 @@ export default function AdminConsole({ userName }: AdminConsoleProps) {
     ]);
 
     if (!camerasRes.ok || !athletesRes.ok || !competitionsRes.ok) {
-      setErrorMessage('Impossible de charger les donnees de la console admin securisee.');
+      setErrorMessage('Impossible de charger les donnees.');
       return;
     }
 
