@@ -78,7 +78,7 @@ export default async function Banner() {
                     </div>
 
                     <Link
-                        href="/multicam"
+                        href={`/multicam?competitionId=${featuredCompetition.id}`}
                         className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3 font-semibold text-black transition hover:opacity-90"
                     >
                         <Play className="h-4 w-4 fill-black" />

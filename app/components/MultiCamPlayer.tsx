@@ -20,13 +20,17 @@ export default function MultiCamPlayer({ initialCameras }: MultiCamPlayerProps) 
 
 
   useEffect(() => {
-    if (!videoRef.current || !currentCamera) {
+    if (!videoRef.current || !currentCamera?.url) {
       return;
     }
 
-    if (!playerRef.current) {
-      playerRef.current = videojs(videoRef.current, {
-        autoplay: true,
+    let player = playerRef.current;
+
+    if (!player) {
+      player = videojs(videoRef.current, {
+        autoplay: false,
+        preload: 'auto',
+        muted: true,
         controls: true,
         responsive: true,
         fluid: false,
@@ -47,31 +51,18 @@ export default function MultiCamPlayer({ initialCameras }: MultiCamPlayerProps) 
           nativeAudioTracks: false,
           nativeVideoTracks: false,
         },
-        sources: [
-          {
-            src: currentCamera.url,
-            type: 'application/x-mpegURL',
-          },
-        ],
       });
-      return;
+
+      playerRef.current = player;
     }
 
-    playerRef.current.src({
+    player.src({
       src: currentCamera.url,
       type: 'application/x-mpegURL',
     });
 
-    void playerRef.current.play();
+    void player.play().catch(() => {});
   }, [currentCamera]);
-
-  useEffect(() => {
-    return () => {
-      if (playerRef.current) {
-        playerRef.current.dispose();
-      }
-    };
-  }, []);
 
   return (
     <div className="flex h-[calc(100dvh-80px)] w-full flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.18),_transparent_28%),radial-gradient(circle_at_right,_rgba(34,197,94,0.12),_transparent_22%),linear-gradient(180deg,_#050816_0%,_#09090b_46%,_#111827_100%)] text-white lg:flex-row">

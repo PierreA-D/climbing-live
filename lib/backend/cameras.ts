@@ -8,6 +8,14 @@ export type CameraStream = {
   status: 'online';
 };
 
+function matchesCompetitionId(pathName: string, competitionId: number | null) {
+  if (competitionId === null) {
+    return true;
+  }
+
+  return pathName.startsWith(`${competitionId}-`);
+}
+
 function matchesAllowedPath(pathName: string, allowedPaths: Set<string>) {
   if (allowedPaths.size === 0) {
     return true;
@@ -22,7 +30,7 @@ function matchesAllowedPath(pathName: string, allowedPaths: Set<string>) {
   return false;
 }
 
-export async function listActiveCameraStreams(): Promise<CameraStream[]> {
+export async function listActiveCameraStreams(competitionId: number | null = null): Promise<CameraStream[]> {
   const state = await readState();
   const paths = await listMediaMtxPaths(state.settings.mediamtxApiUrl);
 
@@ -35,6 +43,7 @@ export async function listActiveCameraStreams(): Promise<CameraStream[]> {
   return paths
     .filter(isMediaMtxPathLive)
     .filter((path) => matchesAllowedPath(path.name, allowedPaths))
+    .filter((path) => matchesCompetitionId(path.name, competitionId))
     .map((path) => ({
       id: path.name,
       name: path.name,

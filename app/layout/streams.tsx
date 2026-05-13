@@ -44,7 +44,7 @@ export default async function Streams({ limit, showHeading = true }: StreamsProp
                         key={competition.id}
                         className="group overflow-hidden rounded-3xl border border-white/10 bg-[#18181b] transition hover:-translate-y-1 hover:border-orange-500/40"
                     >
-                        <Link href="/">
+                        <Link href={`/multicam?competitionId=${competition.id}`} prefetch={false}>
                             <div className="relative overflow-hidden">
                                 <LiveCompetitionThumbnail
                                     previewUrl={competition.previewUrl}

@@ -47,9 +47,7 @@ function LiveCompetitionThumbnailInner({
   const snapshotReadyRef = useRef(false);
 
   useEffect(() => {
-    snapshotReadyRef.current = false;
-
-    if (!previewUrl || !videoRef.current) {
+    if (!videoRef.current || playerRef.current) {
       return;
     }
 
@@ -76,15 +74,27 @@ function LiveCompetitionThumbnailInner({
         nativeAudioTracks: false,
         nativeVideoTracks: false,
       },
-      sources: [
-        {
-          src: previewUrl,
-          type: 'application/x-mpegURL',
-        },
-      ],
     });
 
     playerRef.current = player;
+  }, []);
+
+  useEffect(() => {
+    snapshotReadyRef.current = false;
+
+    const player = playerRef.current;
+
+    if (!player || player.isDisposed() || !previewUrl) {
+      return;
+    }
+
+    setHasError(false);
+    setIsReady(false);
+
+    player.src({
+      src: previewUrl,
+      type: 'application/x-mpegURL',
+    });
 
     const freezeSnapshot = () => {
       if (mode !== 'snapshot' || snapshotReadyRef.current) {
@@ -112,11 +122,9 @@ function LiveCompetitionThumbnailInner({
     };
 
     const handleCanPlay = () => {
-      if (mode === 'snapshot') {
-        return;
+      if (mode !== 'snapshot') {
+        setIsReady(true);
       }
-
-      setIsReady(true);
     };
 
     const handlePlaying = () => {
@@ -132,23 +140,18 @@ function LiveCompetitionThumbnailInner({
       setHasError(true);
     };
 
-    player.ready(handleReady);
-    player.on('loadeddata', handleReady);
+    player.one('loadedmetadata', handleReady);
+
     player.on('canplay', handleCanPlay);
     player.on('playing', handlePlaying);
     player.on('error', handleError);
 
     return () => {
-      if (playerRef.current) {
-        player.off('loadeddata', handleReady);
-        player.off('canplay', handleCanPlay);
-        player.off('playing', handlePlaying);
-        player.off('error', handleError);
-        player.dispose();
-        playerRef.current = null;
-      }
+      player.off('canplay', handleCanPlay);
+      player.off('playing', handlePlaying);
+      player.off('error', handleError);
     };
-  }, [mode, previewUrl]);
+  }, [previewUrl, mode]);
 
   const showFallback = !previewUrl || hasError || !isReady;
 

@@ -4,9 +4,24 @@ import { listActiveCameraStreams } from '@/lib/backend/cameras';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+function parseCompetitionId(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
+export async function GET(request: Request) {
   try {
-    const cameras = await listActiveCameraStreams();
+    const url = new URL(request.url);
+    const competitionId = parseCompetitionId(url.searchParams.get('competitionId'));
+    const cameras = await listActiveCameraStreams(competitionId);
 
     return NextResponse.json(cameras);
   } catch (error) {
