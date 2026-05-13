@@ -5,9 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
-
 import CompetitionSection from '@/app/components/admin/dashboard/CompetitionSection';
-import type { BackendStream, Competition } from '@/app/components/admin/dashboard/types';
+import type { BackendStream, Competition } from '@/data/competitions';
 import { useCompetitionSection } from '@/app/components/admin/dashboard/useCompetitionSection';
 
 type Camera = {
@@ -20,13 +19,13 @@ type Camera = {
   authorized: boolean;
 };
 
-type Athlete = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  bib: string | null;
-  category: string;
-};
+// type Athlete = {
+//   id: string;
+//   firstName: string;
+//   lastName: string;
+//   bib: string | null;
+//   category: string;
+// };
 
 type CopyRowProps = {
   label: string;
@@ -45,12 +44,12 @@ type CameraProvisionResponse = {
   streamKey: string;
 };
 
-const defaultAthleteForm = {
-  firstName: '',
-  lastName: '',
-  bib: '',
-  category: 'open',
-};
+// const defaultAthleteForm = {
+//   firstName: '',
+//   lastName: '',
+//   bib: '',
+//   category: 'open',
+// };
 
 const API_BASE = '/api/admin';
 const PUBLIC_APP_BASE_URL = process.env.NEXT_PUBLIC_APP_BASE_URL?.trim() ?? '';
@@ -106,7 +105,7 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [cameras, setCameras] = useState<Camera[]>([]);
-  const [athletes, setAthletes] = useState<Athlete[]>([]);
+  // const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [streams, setStreams] = useState<BackendStream[]>([]);
   const [deviceTokens, setDeviceTokens] = useState<Record<string, string>>({});
@@ -115,7 +114,7 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
   const [errorMessage, setErrorMessage] = useState('');
   const [lastRefreshAt, setLastRefreshAt] = useState<string>('');
 
-  const [newAthlete, setNewAthlete] = useState(defaultAthleteForm);
+  // const [newAthlete, setNewAthlete] = useState(defaultAthleteForm);
   const selectedCompetitionIdParam = searchParams.get('competitionId');
   const selectedCompetitionId = selectedCompetitionIdParam ? Number(selectedCompetitionIdParam) : null;
 
@@ -135,7 +134,7 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
     }
 
     const camerasData: Camera[] = await camerasRes.json();
-    const athletesData: Athlete[] = await athletesRes.json();
+    // const athletesData: Athlete[] = await athletesRes.json();
     const competitionsData: Competition[] = await competitionsRes.json();
     const streamsData: BackendStream[] = streamsRes.ok ? await streamsRes.json() : [];
 
@@ -151,7 +150,7 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
     }
 
     setCameras(camerasData);
-    setAthletes(athletesData);
+    // setAthletes(athletesData);
     setCompetitions(competitionsData);
     setStreams(streamsData);
     setLastRefreshAt(new Date().toISOString());
@@ -161,9 +160,9 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
     });
   }, []);
 
-  const connectedCount = useMemo(() => {
-    return cameras.filter((camera: Camera) => camera.status === 'online').length;
-  }, [cameras]);
+  // const connectedCount = useMemo(() => {
+  //   return cameras.filter((camera: Camera) => camera.status === 'online').length;
+  // }, [cameras]);
 
   const competitionSection = useCompetitionSection({
     competitions,
@@ -195,16 +194,38 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
     }
   }, [lastRefreshAt, router, selectedCompetition, selectedCompetitionId]);
 
-  const firstCameraPath = useMemo(() => {
-    if (!selectedCamera?.hlsUrl) return 'main';
+  const streamDetails = useMemo(() => {
+    const fallbackStreamKey = selectedCamera ? deviceTokens[selectedCamera.id] ?? '' : '';
+
+    if (!selectedCamera?.hlsUrl) {
+      return {
+        path: 'main',
+        streamKey: fallbackStreamKey,
+        publishPath: fallbackStreamKey ? `main/${fallbackStreamKey}` : 'main',
+      };
+    }
+
     try {
       const hls = new URL(selectedCamera.hlsUrl);
       const chunks = hls.pathname.split('/').filter(Boolean);
-      return chunks[0] ?? 'main';
+      const pathChunks = chunks.at(-1) === 'index.m3u8' ? chunks.slice(0, -1) : chunks;
+      const [path = 'main', ...streamKeyParts] = pathChunks;
+      const streamKey = streamKeyParts.join('/') || fallbackStreamKey;
+      const publishPath = streamKey ? `${path}/${streamKey}` : path;
+
+      return {
+        path,
+        streamKey,
+        publishPath,
+      };
     } catch {
-      return 'main';
+      return {
+        path: 'main',
+        streamKey: fallbackStreamKey,
+        publishPath: fallbackStreamKey ? `main/${fallbackStreamKey}` : 'main',
+      };
     }
-  }, [selectedCamera]);
+  }, [deviceTokens, selectedCamera]);
 
   useEffect(() => {
     const runRefresh = () => {
@@ -225,7 +246,7 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
       return '';
     }
 
-    const path = firstCameraPath;
+    const path = streamDetails.path;
     const base = getAppBaseUrl();
     if (!base) {
       return '';
@@ -241,20 +262,23 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
     });
 
     return `${base}/onboard?${params.toString()}`;
-  }, [deviceTokens, firstCameraPath, selectedCamera]);
+  }, [deviceTokens, selectedCamera, streamDetails.path]);
 
   const streamUrls = useMemo(() => {
     if (!selectedCamera) return null;
     const host = getStreamHost();
-    const path = firstCameraPath;
+    const path = streamDetails.path;
+    const publishPath = streamDetails.publishPath;
     return {
       path,
+      streamKey: streamDetails.streamKey,
+      publishPath,
       rtmp: `rtmp://${host}:1935/${path}`,
-      rtmpServer: `rtmp://${host}:1935/`,
-      rtsp: `rtsp://${host}:8554/${path}`,
-      srt: `srt://${host}:8890?streamid=publish:${path}`,
+      rtmpServer: `rtmp://${host}:1935/${path}`,
+      rtsp: `rtsp://${host}:8554/${publishPath}`,
+      srt: `srt://${host}:8890?streamid=publish:${publishPath}`,
     };
-  }, [firstCameraPath, selectedCamera]);
+  }, [selectedCamera, streamDetails]);
 
   useEffect(() => {
     const renderQr = async () => {
@@ -329,39 +353,39 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
     setErrorMessage('Suppression camera impossible.');
   };
 
-  const createAthlete = async () => {
-    const res = await fetch(`${API_BASE}/athletes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        firstName: newAthlete.firstName,
-        lastName: newAthlete.lastName,
-        bib: newAthlete.bib || null,
-        category: newAthlete.category,
-      }),
-    });
+  // const createAthlete = async () => {
+  //   const res = await fetch(`${API_BASE}/athletes`, {
+  //     method: 'POST',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({
+  //       firstName: newAthlete.firstName,
+  //       lastName: newAthlete.lastName,
+  //       bib: newAthlete.bib || null,
+  //       category: newAthlete.category,
+  //     }),
+  //   });
 
-    if (res.ok) {
-      setNewAthlete(defaultAthleteForm);
-      await refreshAll();
-      return;
-    }
+  //   if (res.ok) {
+  //     setNewAthlete(defaultAthleteForm);
+  //     await refreshAll();
+  //     return;
+  //   }
 
-    setErrorMessage('Creation de grimpeur impossible.');
-  };
+  //   setErrorMessage('Creation de grimpeur impossible.');
+  // };
 
-  const deleteAthlete = async (id: string) => {
-    const res = await fetch(`${API_BASE}/athletes/${id}`, {
-      method: 'DELETE',
-    });
+  // const deleteAthlete = async (id: string) => {
+  //   const res = await fetch(`${API_BASE}/athletes/${id}`, {
+  //     method: 'DELETE',
+  //   });
 
-    if (res.ok) {
-      await refreshAll();
-      return;
-    }
+  //   if (res.ok) {
+  //     await refreshAll();
+  //     return;
+  //   }
 
-    setErrorMessage('Suppression de grimpeur impossible.');
-  };
+  //   setErrorMessage('Suppression de grimpeur impossible.');
+  // };
 
   return (
     <main className="min-h-screen bg-zinc-950 p-6 text-zinc-100">
@@ -530,14 +554,14 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
                     <div className="space-y-2">
                       <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Camera</p>
                       <CopyRow label="ID" value={selectedCamera.id} />
-                      <CopyRow label="Mot de passe RTMP" value={deviceTokens[selectedCamera.id] ?? 'non-defini'} />
-                      <CopyRow label="Cle de stream (stream key)" value={streamUrls?.path ?? 'main'} />
+                      <CopyRow label="Cle de stream secrete" value={streamUrls?.streamKey || deviceTokens[selectedCamera.id] || 'non-defini'} />
+                      <CopyRow label="Chemin du flux" value={streamUrls?.path ?? 'main'} />
                       <p className="text-xs text-zinc-400">
-                        Important: dans l&apos;app RTMP, le nom d&apos;utilisateur doit etre l&apos;ID de la camera, pas la cle de stream.
+                        Important: pour les apps RTMP avec un champ serveur + stream key, mettez le chemin du flux dans le serveur RTMP et la cle secrete dans le champ stream key.
                       </p>
                       <CopyRow
                         label="HLS"
-                        value={selectedCamera.hlsUrl ?? `http://localhost:8888/${streamUrls?.path ?? 'main'}/index.m3u8`}
+                        value={selectedCamera.hlsUrl ?? `http://localhost:8888/${streamUrls?.publishPath ?? 'main'}/index.m3u8`}
                         mono={false}
                       />
                     </div>
@@ -554,7 +578,7 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
                         <div className="space-y-2">
                           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Config OBS</p>
                           <CopyRow label="Serveur" value={streamUrls.rtmpServer} />
-                          <CopyRow label="Cle de stream (stream key)" value={streamUrls.path} />
+                          <CopyRow label="Cle de stream" value={streamUrls.streamKey || 'non-defini'} />
                         </div>
                       </>
                     )}

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { NextResponse } from 'next/server';
 
@@ -29,8 +29,17 @@ function generateCameraId() {
   return `cam-${Date.now()}-${randomUUID().slice(0, 6)}`;
 }
 
+function buildStreamPath(competitionId: number, cameraName: string) {
+  return `${competitionId}-${cameraName}`
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 function generateStreamKey() {
-  return randomUUID().replace(/-/g, '').slice(0, 24);
+  return randomBytes(32).toString('hex');
 }
 
 function parseCompetitionId(value: unknown): number | null {
@@ -62,14 +71,17 @@ export async function POST(request: Request) {
   }
 
   const cameraId = generateCameraId();
+  const cameraName = cameraId;
+  const streamPath = buildStreamPath(competitionId, cameraName);
   const streamKey = generateStreamKey();
+  const publishPath = `${streamPath}/${streamKey}`;
   const streamHost = getStreamHost();
   const cameraPayloadBase = {
     id: cameraId,
-    name: cameraId,
+    name: cameraName,
     location: '',
-    hlsUrl: `http://${streamHost}:8888/${streamKey}/index.m3u8`,
-    rtmpUrl: `rtmp://${streamHost}:1935/${streamKey}`,
+    hlsUrl: `http://${streamHost}:8888/${publishPath}/index.m3u8`,
+    rtmpUrl: `rtmp://${streamHost}:1935/${streamPath}`,
     status: 'offline',
     authorized: true,
   };
@@ -117,9 +129,10 @@ export async function POST(request: Request) {
     cache: 'no-store',
     body: JSON.stringify({
       id: cameraId,
-      name: cameraId,
+      name: cameraName,
+      token: streamKey,
       authorized: true,
-      allowedPaths: [streamKey],
+      allowedPaths: [streamPath],
     }),
   });
 

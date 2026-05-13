@@ -38,12 +38,22 @@ function getPathCandidates(rawPath: string | null | undefined): string[] {
 
   const candidates = new Set<string>([sanitized]);
   const parts = sanitized.split('/').filter(Boolean);
-  const lastPart = parts[parts.length - 1];
-  if (lastPart) {
-    candidates.add(lastPart);
+
+  for (let index = 1; index < parts.length; index += 1) {
+    candidates.add(parts.slice(index).join('/'));
   }
 
   return Array.from(candidates);
+}
+
+function matchesDevicePath(pathCandidates: string[], allowedPaths: string[], token: string): boolean {
+  if (allowedPaths.length === 0) {
+    return true;
+  }
+
+  return pathCandidates.some((candidate) =>
+    allowedPaths.some((allowedPath) => candidate === allowedPath || candidate === `${allowedPath}/${token}`)
+  );
 }
 
 async function readAuthPayload(request: Request): Promise<AuthPayload | null> {
@@ -107,12 +117,21 @@ async function handleAuth(request: Request) {
 
     if (!device && pathCandidates.length > 0) {
       const matches = Object.values(state.devices).filter((entry) =>
-        pathCandidates.some((candidate) => entry.id === candidate || entry.allowedPaths.includes(candidate))
+        pathCandidates.some((candidate) => entry.id === candidate) ||
+        matchesDevicePath(pathCandidates, entry.allowedPaths, entry.token)
       );
 
       if (matches.length === 1) {
         device = matches[0];
         resolvedByStreamKey = true;
+      }
+    }
+
+    if (!device && password !== null) {
+      const matches = Object.values(state.devices).filter((entry) => entry.token === password);
+
+      if (matches.length === 1) {
+        device = matches[0];
       }
     }
 
@@ -146,7 +165,7 @@ async function handleAuth(request: Request) {
       return { allowed: false, reason: 'invalid-token', device: toPublicDevice(device, false) };
     }
 
-    if (pathName && device.allowedPaths.length > 0 && !device.allowedPaths.includes(pathName)) {
+    if (pathCandidates.length > 0 && !matchesDevicePath(pathCandidates, device.allowedPaths, device.token)) {
       return { allowed: false, reason: 'path-not-allowed', device: toPublicDevice(device, false) };
     }
 

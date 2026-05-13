@@ -48,9 +48,10 @@ export default function OnboardClient() {
     return 'localhost';
   }, [streamHostFromQuery]);
 
+  const publishPath = token ? `${path}/${token}` : path;
   const rtmpUrl = `rtmp://${host}:1935/${path}`;
-  const rtspUrl = `rtsp://${host}:8554/${path}`;
-  const srtUrl = `srt://${host}:8890?streamid=publish:${path}`;
+  const rtspUrl = `rtsp://${host}:8554/${publishPath}`;
+  const srtUrl = `srt://${host}:8890?streamid=publish:${publishPath}`;
 
   return (
     <main className="min-h-screen bg-zinc-950 p-6 text-zinc-100">
@@ -62,21 +63,21 @@ export default function OnboardClient() {
 
         <div className="grid gap-3 sm:grid-cols-2">
           <CopyRow label="Utilisateur" value={deviceId || 'non-defini'} />
-          <CopyRow label="Mot de passe" value={token || 'non-defini'} />
+          <CopyRow label="Cle de stream" value={token || 'non-defini'} />
           <CopyRow label="RTMP" value={rtmpUrl} />
           <CopyRow label="RTSP" value={rtspUrl} />
           <CopyRow label="SRT" value={srtUrl} />
-          <CopyRow label="Cle de stream (stream key)" value={path} />
+          <CopyRow label="Chemin du flux" value={path} />
         </div>
 
         <section className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4">
           <h2 className="text-lg font-semibold">Si vous utilisez pas le QR code</h2>
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-zinc-300">
-            <li>Copie manuelle du user/password dans application mobile.</li>
-            <li>Saisie manuelle de URL RTMP complete.</li>
+            <li>Saisie du serveur RTMP avec le chemin du flux deja inclus.</li>
+            <li>Saisie de la cle de stream secrete dans le champ stream key de l&apos;application.</li>
             <li>Connexion via RTSP selon votre application.</li>
             <li>Connexion via SRT si app le supporte.</li>
-            <li>Configuration OBS: serveur RTMP + user/password.</li>
+            <li>Configuration OBS: serveur RTMP + stream key.</li>
             <li>Partage du lien de cette page par SMS, mail, WhatsApp.</li>
           </ul>
         </section>

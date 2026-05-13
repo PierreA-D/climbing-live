@@ -8,6 +8,20 @@ export type CameraStream = {
   status: 'online';
 };
 
+function matchesAllowedPath(pathName: string, allowedPaths: Set<string>) {
+  if (allowedPaths.size === 0) {
+    return true;
+  }
+
+  for (const allowedPath of allowedPaths) {
+    if (pathName === allowedPath || pathName.startsWith(`${allowedPath}/`)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export async function listActiveCameraStreams(): Promise<CameraStream[]> {
   const state = await readState();
   const paths = await listMediaMtxPaths(state.settings.mediamtxApiUrl);
@@ -20,7 +34,7 @@ export async function listActiveCameraStreams(): Promise<CameraStream[]> {
 
   return paths
     .filter(isMediaMtxPathLive)
-    .filter((path) => allowedPaths.size === 0 || allowedPaths.has(path.name))
+    .filter((path) => matchesAllowedPath(path.name, allowedPaths))
     .map((path) => ({
       id: path.name,
       name: path.name,

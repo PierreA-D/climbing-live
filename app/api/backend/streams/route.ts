@@ -5,6 +5,20 @@ import { readState } from '@/lib/backend/store';
 
 export const runtime = 'nodejs';
 
+function matchesAllowedPath(pathName: string, allowedPaths: Set<string>) {
+  if (allowedPaths.size === 0) {
+    return true;
+  }
+
+  for (const allowedPath of allowedPaths) {
+    if (pathName === allowedPath || pathName.startsWith(`${allowedPath}/`)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export async function GET() {
   try {
     const state = await readState();
@@ -18,7 +32,7 @@ export async function GET() {
 
     const streams = paths.map((path) => ({
       ...path,
-      authorized: allowedPaths.size === 0 ? true : allowedPaths.has(path.name),
+      authorized: matchesAllowedPath(path.name, allowedPaths),
       hlsUrl: `${state.settings.hlsBaseUrl}/${path.rawName}/index.m3u8`,
     }));
 

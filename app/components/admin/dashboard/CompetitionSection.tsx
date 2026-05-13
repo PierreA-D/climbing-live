@@ -1,11 +1,10 @@
 'use client';
 
-import type { CompetitionCategory } from '@/app/components/admin/dashboard/types';
+import type { CompetitionCategory } from '@/data/competitions';
 import type { CompetitionSectionController } from '@/app/components/admin/dashboard/useCompetitionSection';
 import Select from "react-select";
 import { selectStyles } from "@/styles/selectStyles";
 import ReactCountryFlag from "react-country-flag";
-
 import countries from "i18n-iso-countries";
 import fr from "i18n-iso-countries/langs/fr.json";
 
@@ -63,7 +62,7 @@ export default function CompetitionSection({
           onClick={toggleCompetitionForm}
           className="rounded-xl border border-zinc-600 px-4 py-2 text-sm font-semibold text-zinc-100"
         >
-          {isCompetitionFormOpen ? 'Fermer le formulaire' : 'Nouvelle compétition'}
+          {isCompetitionFormOpen ? 'Réduire' : 'Nouvelle compétition'}
         </button>
       </div>
 

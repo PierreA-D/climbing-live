@@ -10,7 +10,7 @@ import type {
   CompetitionFormState,
   CompetitionStatus,
   CompetitionWithResolvedStatus,
-} from '@/app/components/admin/dashboard/types';
+} from '@/data/competitions';
 
 const API_BASE = '/api/admin';
 
