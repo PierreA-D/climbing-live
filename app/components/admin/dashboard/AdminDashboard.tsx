@@ -39,6 +39,12 @@ type DeviceWithSecret = {
   token?: string;
 };
 
+type CameraProvisionResponse = {
+  camera: Camera;
+  device: DeviceWithSecret;
+  streamKey: string;
+};
+
 const defaultAthleteForm = {
   firstName: '',
   lastName: '',
@@ -112,14 +118,6 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
   const [newAthlete, setNewAthlete] = useState(defaultAthleteForm);
   const selectedCompetitionIdParam = searchParams.get('competitionId');
   const selectedCompetitionId = selectedCompetitionIdParam ? Number(selectedCompetitionIdParam) : null;
-
-  const generateStreamKey = () => {
-    return `${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`.substring(0, 32);
-  };
-
-  const generateCameraId = () => {
-    return `cam-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-  };
 
   const refreshAll = useCallback(async () => {
     setErrorMessage('');
@@ -276,51 +274,26 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
   }, [onboardingUrl]);
 
   const createCamera = async () => {
-    const cameraId = generateCameraId();
-    const streamKey = generateStreamKey();
+    if (!selectedCompetition) {
+      setErrorMessage('Selectionnez une competition avant de creer une camera.');
+      return;
+    }
 
-    const host = getStreamHost();
-
-    const hlsUrl = `http://${host}:8888/${streamKey}/index.m3u8`;
-    const rtmpUrl = `rtmp://${host}:1935/${streamKey}`;
-
-    const newCameraData = {
-      id: cameraId,
-      name: cameraId,
-      location: '',
-      hlsUrl,
-      rtmpUrl,
-      status: 'offline' as const,
-      authorized: true,
-    };
-
-    const res = await fetch(`${API_BASE}/cameras`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newCameraData),
-    });
-
-    const deviceRes = await fetch('/api/backend/devices', {
+    const res = await fetch(`${API_BASE}/cameras/provision`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id: cameraId,
-        name: cameraId,
-        authorized: true,
-        allowedPaths: [streamKey],
+        competitionId: selectedCompetition.id,
       }),
     });
 
-    if (deviceRes.ok) {
-      const createdDevice = (await deviceRes.json()) as DeviceWithSecret;
-      if (createdDevice.token) {
-        setDeviceTokens((prev) => ({ ...prev, [cameraId]: createdDevice.token as string }));
-      }
-    }
-
     if (res.ok) {
-      // Selectionner la nouvelle camera immediatement
-      setSelectedCamera(newCameraData as Camera);
+      const created = (await res.json()) as CameraProvisionResponse;
+      if (created.device.token) {
+        setDeviceTokens((prev) => ({ ...prev, [created.device.id]: created.device.token as string }));
+      }
+
+      setSelectedCamera(created.camera);
       await refreshAll();
       return;
     }
