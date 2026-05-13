@@ -74,7 +74,7 @@ export default async function Banner() {
                     <div className="mt-2 flex items-center gap-4 text-sm text-zinc-400">
                         <span>{formatCategory(featuredCompetition.category)}</span>
                         <span>•</span>
-                        <span>{featuredCompetition.viewers ?? 0} spectateurs</span>
+                        <span>{featuredCompetition.viewers ?? 0} viewers</span>
                     </div>
 
                     <Link

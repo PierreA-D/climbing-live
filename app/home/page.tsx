@@ -1,5 +1,4 @@
 import Banner from '../layout/banner';
-import Categories from '../layout/categories';
 import Streams from '../layout/streams';
 
 export default function Home() {
@@ -26,7 +25,7 @@ export default function Home() {
         <div>
             <Banner />
             {/* <Categories /> */}
-            <Streams />
+            <Streams limit={3} showHeading />
 
             {/* UPCOMING EVENTS */}
             {/* <section className="mx-auto max-w-7xl px-6 py-14">

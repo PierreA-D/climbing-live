@@ -3,6 +3,11 @@ import Link from 'next/link';
 import LiveCompetitionThumbnail from '@/app/components/LiveCompetitionThumbnail';
 import { listLiveCompetitions } from '@/lib/backend/competitions';
 
+type StreamsProps = {
+    limit?: number;
+    showHeading?: boolean;
+};
+
 function formatCategory(value: string | null) {
     if (!value) {
         return 'Sans categorie';
@@ -11,24 +16,30 @@ function formatCategory(value: string | null) {
     return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-export default async function Streams() {
+export default async function Streams({ limit, showHeading = true }: StreamsProps) {
     const liveCompetitions = await listLiveCompetitions();
 
     if (liveCompetitions.length === 0) {
         return null;
     }
 
+    const competitionsToDisplay = typeof limit === 'number'
+        ? liveCompetitions.slice(0, limit)
+        : liveCompetitions;
+
     return (
         <section className="mx-auto max-w-7xl px-6 py-6">
-            <div className="mb-8 flex items-center justify-between">
-                <h3 className="flex items-center gap-3 text-2xl font-bold">
-                    <Trophy className="h-7 w-7 text-orange-500" />
-                    Compétitions en direct
-                </h3>
-            </div>
+            {showHeading ? (
+                <div className="mb-8 flex items-center justify-between">
+                    <h3 className="flex items-center gap-3 text-2xl font-bold">
+                        <Trophy className="h-7 w-7 text-orange-500" />
+                        Compétitions en direct
+                    </h3>
+                </div>
+            ) : null}
 
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {liveCompetitions.map((competition) => (
+                {competitionsToDisplay.map((competition) => (
                     <div
                         key={competition.id}
                         className="group overflow-hidden rounded-3xl border border-white/10 bg-[#18181b] transition hover:-translate-y-1 hover:border-orange-500/40"
@@ -60,10 +71,6 @@ export default async function Streams() {
                                 <h4 className="text-lg font-bold leading-snug">
                                     {competition.name}
                                 </h4>
-                                {/* <button className="mt-5 flex items-center gap-2 text-sm font-semibold text-orange-400 transition hover:text-orange-300">
-                                    Regarder maintenant
-                                    <ChevronRight className="h-4 w-4" />
-                                </button> */}
                             </div>
                         </Link>
                     </div>

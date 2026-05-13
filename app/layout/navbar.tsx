@@ -35,7 +35,7 @@ export default async function Navbar() {
                     Accueil
                 </Link>
                 <Link
-                    href="/multicam"
+                    href="/competitions"
                     className="text-sm text-zinc-300 transition hover:text-white"
                 >
                     Compétitions
