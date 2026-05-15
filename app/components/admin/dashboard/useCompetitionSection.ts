@@ -67,7 +67,7 @@ type UseCompetitionSectionOptions = {
   competitions: Competition[];
   streams: BackendStream[];
   lastRefreshAt: string;
-  refreshAll: () => Promise<void>;
+  invalidateDashboard: () => Promise<void>;
   setErrorMessage: Dispatch<SetStateAction<string>>;
   onCompetitionCreated?: (competition: Competition) => void;
 };
@@ -90,7 +90,7 @@ export function useCompetitionSection({
   competitions,
   streams,
   lastRefreshAt,
-  refreshAll,
+  invalidateDashboard,
   setErrorMessage,
   onCompetitionCreated,
 }: UseCompetitionSectionOptions): CompetitionSectionController {
@@ -141,7 +141,7 @@ export function useCompetitionSection({
     }
 
     const updates = competitionsWithResolvedStatus.filter(
-      (competition) => competition.status !== competition.resolvedStatus
+      (competition: CompetitionWithResolvedStatus) => competition.status !== competition.resolvedStatus
     );
 
     if (updates.length === 0) {
@@ -170,7 +170,7 @@ export function useCompetitionSection({
         }
 
         if (!cancelled) {
-          await refreshAll();
+          await invalidateDashboard();
         }
       } finally {
         isSyncingCompetitionStatuses.current = false;
@@ -182,7 +182,7 @@ export function useCompetitionSection({
     return () => {
       cancelled = true;
     };
-  }, [competitions, competitionsWithResolvedStatus, refreshAll, setErrorMessage]);
+  }, [competitions, competitionsWithResolvedStatus, invalidateDashboard, setErrorMessage]);
 
   const createCompetition = async () => {
     if (!competitionFormIsValid) {
@@ -223,7 +223,7 @@ export function useCompetitionSection({
     setNewCompetition(defaultCompetitionForm);
     setScheduleCompetition(false);
     setIsCompetitionFormOpen(false);
-    await refreshAll();
+    await invalidateDashboard();
     onCompetitionCreated?.(createdCompetition);
   };
 
@@ -238,12 +238,12 @@ export function useCompetitionSection({
     }
 
     setIsCompetitionFormOpen(competitions.length <= 1);
-    await refreshAll();
+    await invalidateDashboard();
   };
 
   return {
     isCompetitionFormOpen,
-    toggleCompetitionForm: () => setIsCompetitionFormOpen((prev) => !prev),
+    toggleCompetitionForm: () => setIsCompetitionFormOpen((prev: boolean) => !prev),
     newCompetition,
     setNewCompetition,
     scheduleCompetition,

@@ -2,6 +2,7 @@
 // import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "./layout/navbar";
+import ReactQueryProvider from "@/app/components/providers/ReactQueryProvider";
 
 // const geistSans = Geist({
 //   variable: "--font-geist-sans",
@@ -30,14 +31,16 @@ export default function RootLayout({
           className={`h-full antialiased`}
       >
           <body suppressHydrationWarning>
-              <div className="h-screen bg-[#0e0e10] text-white">
-                  <div className="flex flex-1 flex-col">
-                      <Navbar />
-                      <main className="bg-[#0e0e10]">
-                          {children}
-                      </main>
+              <ReactQueryProvider>
+                  <div className="h-screen bg-[#0e0e10] text-white">
+                      <div className="flex flex-1 flex-col">
+                          <Navbar />
+                          <main className="bg-[#0e0e10]">
+                              {children}
+                          </main>
+                      </div>
                   </div>
-              </div>
+              </ReactQueryProvider>
           </body>
       </html>
   );

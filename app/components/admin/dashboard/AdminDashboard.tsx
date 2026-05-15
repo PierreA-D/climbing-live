@@ -1,5 +1,6 @@
 'use client';
 
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -30,6 +31,13 @@ type CameraProvisionResponse = {
   streamKey: string;
 };
 
+type AdminDashboardData = {
+  cameras: Camera[];
+  competitions: Competition[];
+  streams: BackendStream[];
+  deviceTokens: Record<string, string>;
+};
+
 // const defaultAthleteForm = {
 //   firstName: '',
 //   lastName: '',
@@ -38,8 +46,108 @@ type CameraProvisionResponse = {
 // };
 
 const API_BASE = '/api/admin';
+const ADMIN_DASHBOARD_QUERY_KEY = ['admin-dashboard'] as const;
 const PUBLIC_APP_BASE_URL = process.env.NEXT_PUBLIC_APP_BASE_URL?.trim() ?? '';
 const PUBLIC_STREAM_HOST = process.env.NEXT_PUBLIC_STREAM_HOST?.trim() ?? '';
+
+function toDeviceTokenMap(devices: DeviceWithSecret[]) {
+  const tokens: Record<string, string> = {};
+  for (const device of devices) {
+    if (typeof device.id === 'string' && typeof device.token === 'string' && device.token.length > 0) {
+      tokens[device.id] = device.token;
+    }
+  }
+
+  return tokens;
+}
+
+function parsePositiveInteger(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function parseCompetitionIdFromStreamPath(urlValue: unknown): number | null {
+  if (typeof urlValue !== 'string' || !urlValue) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(urlValue);
+    const chunks = parsedUrl.pathname.split('/').filter(Boolean);
+    const candidate = chunks.find((chunk) => /^\d+-/.test(chunk));
+    if (!candidate) {
+      return null;
+    }
+
+    const [competitionIdPart] = candidate.split('-', 1);
+    return parsePositiveInteger(competitionIdPart);
+  } catch {
+    return null;
+  }
+}
+
+function resolveCameraCompetitionId(camera: Camera): number | null {
+  const rawCamera = camera as unknown as Record<string, unknown>;
+
+  const directCompetitionId = parsePositiveInteger(rawCamera.competitionId ?? rawCamera.competition_id);
+  if (directCompetitionId !== null) {
+    return directCompetitionId;
+  }
+
+  const competitionValue = rawCamera.competition;
+  if (typeof competitionValue === 'string') {
+    const matched = /\/competitions\/(\d+)$/.exec(competitionValue);
+    if (matched) {
+      return parsePositiveInteger(matched[1]);
+    }
+  }
+
+  if (competitionValue && typeof competitionValue === 'object') {
+    const nestedId = parsePositiveInteger((competitionValue as { id?: unknown }).id);
+    if (nestedId !== null) {
+      return nestedId;
+    }
+  }
+
+  return parseCompetitionIdFromStreamPath(camera.hlsUrl) ?? parseCompetitionIdFromStreamPath(camera.rtmpUrl);
+}
+
+async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
+  const [camerasRes, competitionsRes, devicesRes, streamsRes] = await Promise.all([
+    fetch(`${API_BASE}/cameras`, { cache: 'no-store' }),
+    fetch(`${API_BASE}/competitions`, { cache: 'no-store' }),
+    fetch('/api/backend/devices?includeSecrets=true', { cache: 'no-store' }),
+    fetch('/api/backend/streams', { cache: 'no-store' }),
+  ]);
+
+  if (!camerasRes.ok || !competitionsRes.ok) {
+    throw new Error('Impossible de charger les donnees.');
+  }
+
+  const cameras = (await camerasRes.json()) as Camera[];
+  const competitions = (await competitionsRes.json()) as Competition[];
+  const streams = streamsRes.ok ? ((await streamsRes.json()) as BackendStream[]) : [];
+  const deviceTokens = devicesRes.ok
+    ? toDeviceTokenMap((await devicesRes.json()) as DeviceWithSecret[])
+    : {};
+
+  return {
+    cameras,
+    competitions,
+    streams,
+    deviceTokens,
+  };
+}
 
 function getAppBaseUrl() {
   if (PUBLIC_APP_BASE_URL) {
@@ -63,62 +171,61 @@ type AdminConsoleProps = {
 
 export default function AdminDashboard({ userName }: AdminConsoleProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const [cameras, setCameras] = useState<Camera[]>([]);
-  // const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [competitions, setCompetitions] = useState<Competition[]>([]);
-  const [streams, setStreams] = useState<BackendStream[]>([]);
-  const [deviceTokens, setDeviceTokens] = useState<Record<string, string>>({});
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
-  const [lastRefreshAt, setLastRefreshAt] = useState<string>('');
 
   // const [newAthlete, setNewAthlete] = useState(defaultAthleteForm);
   const selectedCompetitionIdParam = searchParams.get('competitionId');
   const selectedCompetitionId = selectedCompetitionIdParam ? Number(selectedCompetitionIdParam) : null;
 
-  const refreshAll = useCallback(async () => {
-    setErrorMessage('');
-    const [camerasRes, athletesRes, competitionsRes, devicesRes, streamsRes] = await Promise.all([
-      fetch(`${API_BASE}/cameras`, { cache: 'no-store' }),
-      fetch(`${API_BASE}/athletes`, { cache: 'no-store' }),
-      fetch(`${API_BASE}/competitions`, { cache: 'no-store' }),
-      fetch('/api/backend/devices?includeSecrets=true', { cache: 'no-store' }),
-      fetch('/api/backend/streams', { cache: 'no-store' }),
-    ]);
+  const dashboardQuery = useQuery({
+    queryKey: ADMIN_DASHBOARD_QUERY_KEY,
+    queryFn: fetchAdminDashboardData,
+    refetchInterval: 10000,
+  });
 
-    if (!camerasRes.ok || !athletesRes.ok || !competitionsRes.ok) {
-      setErrorMessage('Impossible de charger les donnees.');
-      return;
+  const cameras = dashboardQuery.data?.cameras ?? [];
+  const competitions = dashboardQuery.data?.competitions ?? [];
+  const streams = dashboardQuery.data?.streams ?? [];
+  const deviceTokens = dashboardQuery.data?.deviceTokens ?? {};
+  const camerasForSelectedCompetition = useMemo(() => {
+    if (selectedCompetitionId === null || Number.isNaN(selectedCompetitionId)) {
+      return cameras;
     }
 
-    const camerasData: Camera[] = await camerasRes.json();
-    // const athletesData: Athlete[] = await athletesRes.json();
-    const competitionsData: Competition[] = await competitionsRes.json();
-    const streamsData: BackendStream[] = streamsRes.ok ? await streamsRes.json() : [];
+    return cameras.filter((camera: Camera) => resolveCameraCompetitionId(camera) === selectedCompetitionId);
+  }, [cameras, selectedCompetitionId]);
+  const lastRefreshAt = dashboardQuery.dataUpdatedAt
+    ? new Date(dashboardQuery.dataUpdatedAt).toISOString()
+    : '';
 
-    if (devicesRes.ok) {
-      const devicesData: DeviceWithSecret[] = await devicesRes.json();
-      const tokens: Record<string, string> = {};
-      for (const device of devicesData) {
-        if (typeof device.id === 'string' && typeof device.token === 'string' && device.token.length > 0) {
-          tokens[device.id] = device.token;
-        }
-      }
-      setDeviceTokens(tokens);
-    }
-
-    setCameras(camerasData);
-    // setAthletes(athletesData);
-    setCompetitions(competitionsData);
-    setStreams(streamsData);
-    setLastRefreshAt(new Date().toISOString());
-    setSelectedCamera((prev: Camera | null) => {
-      if (!prev) return camerasData[0] ?? null;
-      return camerasData.find((camera: Camera) => camera.id === prev.id) ?? camerasData[0] ?? null;
+  const invalidateDashboard = useCallback(async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ADMIN_DASHBOARD_QUERY_KEY,
+      refetchType: 'active',
     });
-  }, []);
+  }, [queryClient]);
+
+  useEffect(() => {
+    setSelectedCamera((prev: Camera | null) => {
+      const activeCameraList = selectedCompetitionId === null || Number.isNaN(selectedCompetitionId)
+        ? cameras
+        : camerasForSelectedCompetition;
+
+      if (activeCameraList.length === 0) {
+        return null;
+      }
+
+      if (!prev) {
+        return activeCameraList[0] ?? null;
+      }
+
+      return activeCameraList.find((camera: Camera) => camera.id === prev.id) ?? activeCameraList[0] ?? null;
+    });
+  }, [cameras, camerasForSelectedCompetition, selectedCompetitionId]);
 
   // const connectedCount = useMemo(() => {
   //   return cameras.filter((camera: Camera) => camera.status === 'online').length;
@@ -128,7 +235,7 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
     competitions,
     streams,
     lastRefreshAt,
-    refreshAll,
+    invalidateDashboard,
     setErrorMessage,
     onCompetitionCreated: (competition) => {
       setSelectedCamera(null);
@@ -145,14 +252,14 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
   }, [competitionSection.competitions, selectedCompetitionId]);
 
   useEffect(() => {
-    if (!lastRefreshAt || selectedCompetitionId === null || Number.isNaN(selectedCompetitionId)) {
+    if (!dashboardQuery.data || selectedCompetitionId === null || Number.isNaN(selectedCompetitionId)) {
       return;
     }
 
     if (!selectedCompetition) {
       router.replace('/admin/dashboard');
     }
-  }, [lastRefreshAt, router, selectedCompetition, selectedCompetitionId]);
+  }, [dashboardQuery.data, router, selectedCompetition, selectedCompetitionId]);
 
   const streamDetails = useMemo(() => {
     const fallbackStreamKey = selectedCamera ? deviceTokens[selectedCamera.id] ?? '' : '';
@@ -186,20 +293,6 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
       };
     }
   }, [deviceTokens, selectedCamera]);
-
-  useEffect(() => {
-    const runRefresh = () => {
-      void refreshAll();
-    };
-
-    const t = window.setTimeout(runRefresh, 0);
-    const i = window.setInterval(runRefresh, 10000);
-
-    return () => {
-      window.clearTimeout(t);
-      window.clearInterval(i);
-    };
-  }, [refreshAll]);
 
   const onboardingUrl = useMemo(() => {
     if (!selectedCamera) {
@@ -257,61 +350,100 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
     void renderQr();
   }, [onboardingUrl]);
 
+  const createCameraMutation = useMutation({
+    mutationFn: async (competitionId: number) => {
+      const response = await fetch(`${API_BASE}/cameras/provision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ competitionId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Creation de camera impossible.');
+      }
+
+      return (await response.json()) as CameraProvisionResponse;
+    },
+    onMutate: () => {
+      setErrorMessage('');
+    },
+    onSuccess: async (created: CameraProvisionResponse) => {
+      setSelectedCamera(created.camera);
+      await invalidateDashboard();
+    },
+    onError: () => {
+      setErrorMessage('Creation de camera impossible.');
+    },
+  });
+
+  const patchCameraMutation = useMutation({
+    mutationFn: async ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: Partial<Pick<Camera, 'authorized' | 'status'>>;
+    }) => {
+      const response = await fetch(`${API_BASE}/cameras/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+
+      if (!response.ok) {
+        throw new Error('Mise a jour camera impossible.');
+      }
+    },
+    onMutate: () => {
+      setErrorMessage('');
+    },
+    onSuccess: async () => {
+      await invalidateDashboard();
+    },
+    onError: () => {
+      setErrorMessage('Mise a jour camera impossible.');
+    },
+  });
+
+  const deleteCameraMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`${API_BASE}/cameras/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Suppression camera impossible.');
+      }
+    },
+    onMutate: () => {
+      setErrorMessage('');
+    },
+    onSuccess: async () => {
+      await invalidateDashboard();
+    },
+    onError: () => {
+      setErrorMessage('Suppression camera impossible.');
+    },
+  });
+
   const createCamera = async () => {
     if (!selectedCompetition) {
       setErrorMessage('Selectionnez une competition avant de creer une camera.');
       return;
     }
 
-    const res = await fetch(`${API_BASE}/cameras/provision`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        competitionId: selectedCompetition.id,
-      }),
-    });
-
-    if (res.ok) {
-      const created = (await res.json()) as CameraProvisionResponse;
-      if (created.device.token) {
-        setDeviceTokens((prev) => ({ ...prev, [created.device.id]: created.device.token as string }));
-      }
-
-      setSelectedCamera(created.camera);
-      await refreshAll();
-      return;
-    }
-
-    setErrorMessage('Creation de camera impossible.');
+    await createCameraMutation.mutateAsync(selectedCompetition.id);
   };
 
   const patchCamera = async (id: string, patch: Partial<Pick<Camera, 'authorized' | 'status'>>) => {
-    const res = await fetch(`${API_BASE}/cameras/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
-
-    if (res.ok) {
-      await refreshAll();
-      return;
-    }
-
-    setErrorMessage('Mise a jour camera impossible.');
+    await patchCameraMutation.mutateAsync({ id, patch });
   };
 
   const deleteCamera = async (id: string) => {
-    const res = await fetch(`${API_BASE}/cameras/${id}`, {
-      method: 'DELETE',
-    });
-
-    if (res.ok) {
-      await refreshAll();
-      return;
-    }
-
-    setErrorMessage('Suppression camera impossible.');
+    await deleteCameraMutation.mutateAsync(id);
   };
+
+  const displayErrorMessage = errorMessage || (dashboardQuery.isError ? 'Impossible de charger les donnees.' : '');
 
   // const createAthlete = async () => {
   //   const res = await fetch(`${API_BASE}/athletes`, {
@@ -365,9 +497,15 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
         )}
         </header>
 
-        {errorMessage ? (
+        {displayErrorMessage ? (
           <div className="rounded-xl border border-red-600/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
-            {errorMessage}
+            {displayErrorMessage}
+          </div>
+        ) : null}
+
+        {dashboardQuery.isLoading && !dashboardQuery.data ? (
+          <div className="rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 py-3 text-sm text-zinc-300">
+            Chargement du dashboard admin...
           </div>
         ) : null}
 
@@ -389,7 +527,7 @@ export default function AdminDashboard({ userName }: AdminConsoleProps) {
         {selectedCompetition ? (
           <CompetitionConfiguration
             selectedCompetition={selectedCompetition}
-            cameras={cameras}
+            cameras={camerasForSelectedCompetition}
             selectedCamera={selectedCamera}
             qrDataUrl={qrDataUrl}
             selectedCameraToken={selectedCamera ? deviceTokens[selectedCamera.id] ?? '' : ''}
