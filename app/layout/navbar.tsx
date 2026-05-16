@@ -2,7 +2,6 @@ import {
     ChevronDown,
     Mountain,
     Search,
-    Plus,
     DoorOpen,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -81,13 +80,13 @@ export default async function Navbar() {
             </div>
 
             <div className="flex items-center gap-3">
-                <div className="hidden items-center gap-2 rounded-xl bg-zinc-800 px-3 py-2 md:flex">
+                {/* <div className="hidden items-center gap-2 rounded-xl bg-zinc-800 px-3 py-2 md:flex">
                     <Search className="h-4 w-4 text-zinc-400" />
                     <input
                         placeholder="Rechercher..."
                         className="bg-transparent text-sm outline-none placeholder:text-zinc-500"
                     />
-                </div>
+                </div> */}
 
                 {session ? (
                     <LogoutButton />
