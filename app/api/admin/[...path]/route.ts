@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-import { getBackendApiBase } from '@/lib/auth/backend';
-import { clearSessionCookie, getSession } from '@/lib/auth/session';
+import { getBackendApiBase } from '@/app/features/auth/server/backend';
+import { clearSessionCookie, getSession } from '@/app/features/auth/server/session';
 
 export const runtime = 'nodejs';
 

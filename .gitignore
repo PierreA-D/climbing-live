@@ -20,6 +20,7 @@
 # production
 /build
 /.data
+/structure.*
 
 # misc
 .DS_Store

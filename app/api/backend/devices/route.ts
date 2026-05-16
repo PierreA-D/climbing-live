@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { listMediaMtxPaths, withLiveDeviceState } from '@/lib/backend/mediamtx';
-import { getSession } from '@/lib/auth/session';
+import { getSession } from '@/app/features/auth/server/session';
 import {
   createDevice,
   createDeviceToken,

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { getSession } from '@/lib/auth/session';
+import { getSession } from '@/app/features/auth/server/session';
 import { listMediaMtxPaths, withLiveDeviceState } from '@/lib/backend/mediamtx';
 import { mutateState, normalizePathList, readState, toPublicDevice, touchDevice } from '@/lib/backend/store';
 

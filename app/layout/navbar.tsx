@@ -6,9 +6,9 @@ import {
     DoorOpen,
 } from 'lucide-react';
 import Link from 'next/link';
-import LogoutButton from '@/app/components/auth/LogoutButton';
+import LogoutButton from '@/app/features/auth/components/LogoutButton';
 import { categories } from '@/data/categories';
-import { getSession } from '@/lib/auth/session';
+import { getSession } from '@/app/features/auth/server/session';
 
 export default async function Navbar() {
     const session = await getSession();

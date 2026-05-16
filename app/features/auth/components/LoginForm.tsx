@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, ArrowRight, Mountain, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ArrowRight, Mountain } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -11,7 +11,7 @@ export default function LoginForm() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
     setError('');

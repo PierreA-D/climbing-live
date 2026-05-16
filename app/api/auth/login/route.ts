@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-import { getBackendApiBase } from '@/lib/auth/backend';
-import { createSessionToken, setSessionCookie } from '@/lib/auth/session';
+import { getBackendApiBase } from '@/app/features/auth/server/backend';
+import { createSessionToken, setSessionCookie } from '@/app/features/auth/server/session';
 
 export const runtime = 'nodejs';
 

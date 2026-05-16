@@ -1,4 +1,4 @@
-import { getBackendApiBase } from '@/lib/auth/backend';
+import { getBackendApiBase } from '@/app/features/auth/server/backend';
 import { listActiveCameraStreams } from '@/lib/backend/cameras';
 
 export type CompetitionStatus = 'scheduled' | 'live' | 'finished';

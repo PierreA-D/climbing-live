@@ -2,8 +2,8 @@ import { randomBytes, randomUUID } from 'node:crypto';
 
 import { NextResponse } from 'next/server';
 
-import { getBackendApiBase } from '@/lib/auth/backend';
-import { getSession } from '@/lib/auth/session';
+import { getBackendApiBase } from '@/app/features/auth/server/backend';
+import { getSession } from '@/app/features/auth/server/session';
 
 export const runtime = 'nodejs';
 
