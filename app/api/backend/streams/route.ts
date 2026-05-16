@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { listApiCameraDevices } from '@/lib/backend/camera-api';
 import { listMediaMtxPaths } from '@/lib/backend/mediamtx';
 import { readState } from '@/lib/backend/store';
 
@@ -22,10 +23,13 @@ function matchesAllowedPath(pathName: string, allowedPaths: Set<string>) {
 export async function GET() {
   try {
     const state = await readState();
-    const paths = await listMediaMtxPaths(state.settings.mediamtxApiUrl);
+    const [paths, apiCameras] = await Promise.all([
+      listMediaMtxPaths(state.settings.mediamtxApiUrl),
+      listApiCameraDevices(),
+    ]);
 
     const allowedPaths = new Set(
-      Object.values(state.devices)
+      [...Object.values(state.devices), ...apiCameras]
         .filter((device) => device.authorized && !device.blocked)
         .flatMap((device) => device.allowedPaths)
     );

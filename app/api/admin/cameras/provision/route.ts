@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 
 import { getBackendApiBase } from '@/app/features/auth/server/backend';
 import { getSession } from '@/app/features/auth/server/session';
+import { rememberApiCameraDevice } from '@/lib/backend/camera-api';
 
 export const runtime = 'nodejs';
 
@@ -120,41 +121,12 @@ export async function POST(request: Request) {
     }
   }
 
-  const deviceResponse = await fetch(new URL('/api/backend/devices', request.url), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      cookie: request.headers.get('cookie') ?? '',
-    },
-    cache: 'no-store',
-    body: JSON.stringify({
-      id: cameraId,
-      name: cameraName,
-      token: streamKey,
-      authorized: true,
-      allowedPaths: [streamPath],
-    }),
-  });
+  const createdDevice: CreatedDevice = {
+    id: cameraId,
+    token: streamKey,
+  };
 
-  if (!deviceResponse.ok) {
-    await fetch(`${getBackendApiBase()}/cameras/${cameraId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${session.backendToken}`,
-      },
-      cache: 'no-store',
-    }).catch(() => undefined);
-
-    const body = await deviceResponse.text();
-    return new NextResponse(body || JSON.stringify({ error: 'Device creation failed' }), {
-      status: deviceResponse.status,
-      headers: {
-        'content-type': deviceResponse.headers.get('content-type') ?? 'application/json',
-      },
-    });
-  }
-
-  const createdDevice = (await deviceResponse.json()) as CreatedDevice;
+  rememberApiCameraDevice(createdCamera);
 
   return NextResponse.json({
     camera: createdCamera,

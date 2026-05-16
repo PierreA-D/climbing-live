@@ -61,6 +61,34 @@ function toDeviceTokenMap(devices: DeviceWithSecret[]) {
   return tokens;
 }
 
+function getCameraStreamKey(camera: Camera): string {
+  if (!camera.hlsUrl) {
+    return '';
+  }
+
+  try {
+    const hls = new URL(camera.hlsUrl);
+    const chunks = hls.pathname.split('/').filter(Boolean);
+    const pathChunks = chunks.at(-1) === 'index.m3u8' ? chunks.slice(0, -1) : chunks;
+    return pathChunks.slice(1).join('/');
+  } catch {
+    return '';
+  }
+}
+
+function toCameraTokenMap(cameras: Camera[]) {
+  const tokens: Record<string, string> = {};
+
+  for (const camera of cameras) {
+    const token = getCameraStreamKey(camera);
+    if (token) {
+      tokens[camera.id] = token;
+    }
+  }
+
+  return tokens;
+}
+
 function parsePositiveInteger(value: unknown): number | null {
   if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
     return value;
@@ -137,9 +165,10 @@ async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
   const cameras = (await camerasRes.json()) as Camera[];
   const competitions = (await competitionsRes.json()) as Competition[];
   const streams = streamsRes.ok ? ((await streamsRes.json()) as BackendStream[]) : [];
-  const deviceTokens = devicesRes.ok
-    ? toDeviceTokenMap((await devicesRes.json()) as DeviceWithSecret[])
-    : {};
+  const deviceTokens = {
+    ...toCameraTokenMap(cameras),
+    ...(devicesRes.ok ? toDeviceTokenMap((await devicesRes.json()) as DeviceWithSecret[]) : {}),
+  };
 
   return {
     cameras,

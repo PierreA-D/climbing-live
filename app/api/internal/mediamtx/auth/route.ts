@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 
+import { listApiCameraDevices } from '@/lib/backend/camera-api';
 import {
   createDevice,
   isDeviceOnline,
   mutateState,
+  readState,
   sanitizePathName,
   toPublicDevice,
   touchDevice,
@@ -21,6 +23,24 @@ type AuthPayload = {
 };
 
 const nowIso = () => new Date().toISOString();
+
+type AuthDevice = {
+  id: string;
+  name: string;
+  token: string | null;
+  authorized: boolean;
+  blocked: boolean;
+  allowedPaths: string[];
+  status: 'online' | 'offline';
+  lastSeenAt: string | null;
+  lastProtocol: string | null;
+  currentPath: string | null;
+  lastIp?: string | null;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  source: 'local' | 'camera-api';
+};
 
 function normalizeId(value: unknown): string | null {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -52,7 +72,16 @@ function matchesDevicePath(pathCandidates: string[], allowedPaths: string[], tok
   }
 
   return pathCandidates.some((candidate) =>
-    allowedPaths.some((allowedPath) => candidate === allowedPath || candidate === `${allowedPath}/${token}`)
+    allowedPaths.some((allowedPath) => {
+      const publishPath = token ? `${allowedPath}/${token}` : allowedPath;
+
+      return (
+        candidate === allowedPath ||
+        candidate === publishPath ||
+        candidate.startsWith(`${allowedPath}/`) ||
+        candidate.startsWith(`${publishPath}/`)
+      );
+    })
   );
 }
 
@@ -95,90 +124,136 @@ async function handleAuth(request: Request) {
   const action = typeof payload.action === 'string' ? payload.action.toLowerCase() : 'publish';
   const ip = typeof payload.ip === 'string' ? payload.ip : null;
   const protocol = typeof payload.protocol === 'string' ? payload.protocol : null;
+  const state = await readState();
+  const apiCameras = await listApiCameraDevices();
 
-  const decision = await mutateState((state) => {
-    if ((action === 'publish' && !state.settings.enablePublish) || (action === 'read' && !state.settings.enableRead)) {
-      return { allowed: false, reason: 'action-disabled' };
+  if ((action === 'publish' && !state.settings.enablePublish) || (action === 'read' && !state.settings.enableRead)) {
+    return NextResponse.json({ allowed: false, reason: 'action-disabled' }, { status: 401 });
+  }
+
+  const allDevices: AuthDevice[] = [
+    ...Object.values(state.devices).map((device) => ({ ...device, source: 'local' as const })),
+    ...apiCameras.map((device) => ({
+      ...device,
+      status: 'offline' as const,
+      lastSeenAt: null,
+      lastProtocol: null,
+      currentPath: null,
+      source: 'camera-api' as const,
+    })),
+  ];
+
+  let device = userId ? allDevices.find((entry) => entry.id === userId) : undefined;
+  let resolvedByStreamKey = false;
+
+  if (!device && userCandidates.length > 0) {
+    const matches = allDevices.filter((entry) => userCandidates.some((candidate) => entry.allowedPaths.includes(candidate)));
+
+    if (matches.length === 1) {
+      device = matches[0];
+      resolvedByStreamKey = true;
     }
+  }
 
-    let device = userId ? state.devices[userId] : undefined;
-    let resolvedByStreamKey = false;
+  if (!device && pathCandidates.length > 0) {
+    const matches = allDevices.filter((entry) =>
+      pathCandidates.some((candidate) => entry.id === candidate) ||
+      matchesDevicePath(pathCandidates, entry.allowedPaths, entry.token ?? '')
+    );
 
-    if (!device && userCandidates.length > 0) {
-      const matches = Object.values(state.devices).filter((entry) =>
-        userCandidates.some((candidate) => entry.allowedPaths.includes(candidate))
-      );
-
-      if (matches.length === 1) {
-        device = matches[0];
-        resolvedByStreamKey = true;
-      }
+    if (matches.length === 1) {
+      device = matches[0];
+      resolvedByStreamKey = true;
     }
+  }
 
-    if (!device && pathCandidates.length > 0) {
-      const matches = Object.values(state.devices).filter((entry) =>
-        pathCandidates.some((candidate) => entry.id === candidate) ||
-        matchesDevicePath(pathCandidates, entry.allowedPaths, entry.token)
-      );
+  if (!device && password !== null) {
+    const matches = allDevices.filter((entry) => entry.token === password);
 
-      if (matches.length === 1) {
-        device = matches[0];
-        resolvedByStreamKey = true;
-      }
+    if (matches.length === 1) {
+      device = matches[0];
     }
+  }
 
-    if (!device && password !== null) {
-      const matches = Object.values(state.devices).filter((entry) => entry.token === password);
-
-      if (matches.length === 1) {
-        device = matches[0];
-      }
-    }
-
-    if (!device && userId && state.settings.autoRegisterUnknownDevices) {
-      device = createDevice({
+  if (!device && userId && state.settings.autoRegisterUnknownDevices) {
+    const created = await mutateState((mutableState) => {
+      const nextDevice = createDevice({
         id: userId,
         name: userId,
         token: password ?? undefined,
-        authorized: state.settings.autoAuthorizeNewDevices,
+        authorized: mutableState.settings.autoAuthorizeNewDevices,
       });
-      state.devices[userId] = device;
-    }
+      mutableState.devices[userId] = nextDevice;
+      return nextDevice;
+    });
 
-    if (!device) {
-      const allowedUnknown = state.settings.allowUnknownDevices && !state.settings.requireDeviceAuth;
-      return {
+    device = {
+      ...created,
+      source: 'local',
+    };
+  }
+
+  if (!device) {
+    const allowedUnknown = state.settings.allowUnknownDevices && !state.settings.requireDeviceAuth;
+    return NextResponse.json(
+      {
         allowed: allowedUnknown,
         reason: allowedUnknown ? 'allowed-unknown' : 'unknown-device',
-      };
-    }
+      },
+      { status: allowedUnknown ? 200 : 401 }
+    );
+  }
 
-    if (device.blocked) {
-      return { allowed: false, reason: 'device-blocked', device: toPublicDevice(device, false) };
-    }
+  if (device.blocked) {
+    return NextResponse.json({ allowed: false, reason: 'device-blocked', device }, { status: 401 });
+  }
 
-    if (state.settings.requireDeviceAuth && !device.authorized) {
-      return { allowed: false, reason: 'device-not-authorized', device: toPublicDevice(device, false) };
-    }
+  if (state.settings.requireDeviceAuth && !device.authorized) {
+    return NextResponse.json({ allowed: false, reason: 'device-not-authorized', device }, { status: 401 });
+  }
 
-    if (state.settings.requireDeviceAuth && !resolvedByStreamKey && password !== null && password !== device.token) {
-      return { allowed: false, reason: 'invalid-token', device: toPublicDevice(device, false) };
-    }
+  if (state.settings.requireDeviceAuth && !resolvedByStreamKey && password !== null && password !== device.token) {
+    return NextResponse.json({ allowed: false, reason: 'invalid-token', device }, { status: 401 });
+  }
 
-    if (pathCandidates.length > 0 && !matchesDevicePath(pathCandidates, device.allowedPaths, device.token)) {
-      return { allowed: false, reason: 'path-not-allowed', device: toPublicDevice(device, false) };
-    }
+  if (pathCandidates.length > 0 && !matchesDevicePath(pathCandidates, device.allowedPaths, device.token ?? '')) {
+    return NextResponse.json({ allowed: false, reason: 'path-not-allowed', device }, { status: 401 });
+  }
 
-    const connectedCount = Object.values(state.devices).filter((entry) =>
-      isDeviceOnline(entry, state.settings.deviceOfflineAfterMs)
-    ).length;
+  const connectedCount = Object.values(state.devices).filter((entry) =>
+    isDeviceOnline(entry, state.settings.deviceOfflineAfterMs)
+  ).length;
 
-    if (!isDeviceOnline(device, state.settings.deviceOfflineAfterMs) && connectedCount >= state.settings.maxConnectedDevices) {
-      return { allowed: false, reason: 'max-connected-reached', device: toPublicDevice(device, false) };
+  const alreadyConnected = device.source === 'local'
+    ? isDeviceOnline(device, state.settings.deviceOfflineAfterMs)
+    : false;
+
+  if (!alreadyConnected && connectedCount >= state.settings.maxConnectedDevices) {
+    return NextResponse.json({ allowed: false, reason: 'max-connected-reached', device }, { status: 401 });
+  }
+
+  if (device.source !== 'local') {
+    return NextResponse.json({
+      allowed: true,
+      reason: 'ok',
+      device: {
+        ...device,
+        status: 'online',
+        lastSeenAt: nowIso(),
+        lastProtocol: protocol,
+        currentPath: pathName,
+      },
+    });
+  }
+
+  const decision = await mutateState((mutableState) => {
+    const current = mutableState.devices[device.id];
+    if (!current) {
+      return { allowed: false, reason: 'unknown-device' };
     }
 
     const updated = touchDevice({
-      ...device,
+      ...current,
       status: 'online',
       lastSeenAt: nowIso(),
       lastIp: ip,
@@ -186,7 +261,7 @@ async function handleAuth(request: Request) {
       currentPath: pathName,
     });
 
-    state.devices[updated.id] = updated;
+    mutableState.devices[updated.id] = updated;
 
     return {
       allowed: true,
